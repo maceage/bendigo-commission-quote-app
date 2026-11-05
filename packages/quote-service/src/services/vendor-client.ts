@@ -58,18 +58,29 @@ export class VendorQuoteClient {
   }
 
   private async attemptQuote(request: QuoteRequest): Promise<QuoteResponse> {
-    const response = await fetch(`${this.cfg.baseUrl}/quotes`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": this.cfg.apiKey, // security lives here and nowhere else
-      },
-      body: JSON.stringify(request),
-      signal: AbortSignal.timeout(this.cfg.timeoutMs),
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${this.cfg.baseUrl}/quotes`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": this.cfg.apiKey,
+        },
+        body: JSON.stringify(request),
+        signal: AbortSignal.timeout(this.cfg.timeoutMs),
+      });
+    } catch (err) {
+      // AbortSignal.timeout rejects with a DOMException named
+      // "TimeoutError". Note: DOMException is NOT instanceof Error
+      // in Node, so duck-type on .name instead.
+      const name = (err as { name?: string })?.name;
+      if (name === "TimeoutError") {
+        throw { code: "VENDOR_TIMEOUT", message: "Vendor timed out." };
+      }
+      // Connection refused, DNS failure, reset — transient, retry it.
+      throw { code: "SERVICE_UNAVAILABLE", message: "Vendor unreachable." };
+    }
 
-    // Transient vendor-side failure (their simulated random errors
-    // land here) -> caller decides whether to retry.
     if (response.status >= 500 || response.status === 429) {
       throw { code: "SERVICE_UNAVAILABLE", message: "Vendor temporarily unavailable." };
     }
