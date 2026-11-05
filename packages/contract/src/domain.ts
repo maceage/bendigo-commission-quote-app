@@ -1,4 +1,3 @@
-// packages/contract/src/domain.ts
 // Shared domain types — the single source of truth for the agreed
 // contract between the Lending Platform and the third-party vendor
 // Commission Quote API.
