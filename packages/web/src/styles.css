@@ -1,0 +1,13 @@
+.app { max-width: 640px; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; }
+.field { display: flex; flex-direction: column; margin-bottom: 1rem; }
+.field label { margin-bottom: 0.25rem; }
+.field input, .field select { padding: 0.5rem; font-size: 1rem; }
+.field-error { color: #c0392b; font-size: 0.875rem; margin: 0.25rem 0 0; }
+.alert { border: 1px solid #c0392b; background: #fdf0ef; padding: 1rem; margin-top: 1.5rem; border-radius: 4px; }
+.alert-hint { font-size: 0.875rem; color: #555; }
+.quote-result { border: 1px solid #ccc; padding: 1.5rem; margin-top: 1.5rem; border-radius: 4px; }
+.quote-result dl { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 0; }
+.quote-total { font-size: 1.75rem; font-weight: 700; }
+.quote-id { font-family: monospace; font-size: 0.85rem; word-break: break-all; }
+button { padding: 0.75rem 1.5rem; font-size: 1rem; cursor: pointer; }
+button:disabled { opacity: 0.6; cursor: wait; }
