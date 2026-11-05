@@ -94,6 +94,11 @@ describe("POST /api/quotes", () => {
   });
 
   it("returns 500 with a safe message when the provider throws something untyped", async () => {
+    // Silence the route's deliberate alarm for THIS test — we assert
+    // it fired, so the console noise is proven rather than merely
+    // tolerated (and doesn't pollute every future test run).
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => { });
+
     const provider = stubProvider(() => Promise.reject(new Error("secret stack details")));
     harness = await startApp(createApp({ quoteService: provider }));
 
@@ -101,8 +106,10 @@ describe("POST /api/quotes", () => {
     expect(res.status).toBe(500);
 
     const body = await res.json();
-    // The internal error message must NOT leak to the client.
     expect(JSON.stringify(body)).not.toContain("secret stack details");
+
+    // The alarm rang — loudly, with the real details — on the server side.
+    expect(errorSpy).toHaveBeenCalledWith("[quote-service] unexpected failure:", expect.any(Error));
   });
 
   it("returns 400 VALIDATION_ERROR for a malformed JSON body", async () => {
