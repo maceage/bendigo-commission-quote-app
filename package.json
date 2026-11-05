@@ -1,0 +1,17 @@
+{
+  "name": "commission-quote-app",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n vendor,service,web -c yellow,cyan,magenta \"npm run dev -w packages/vendor-api\" \"npm run dev -w packages/quote-service\" \"npm run dev -w packages/web\"",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}

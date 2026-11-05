@@ -1,0 +1,22 @@
+{
+  "name": "@commission-quote/quote-service",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "test": "vitest run",
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@commission-quote/contract": "1.0.0",
+    "express": "^4.19.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "tsx": "^4.11.0",
+    "typescript": "^5.4.0",
+    "vitest": "^3.0.0"
+  }
+}
