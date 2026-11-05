@@ -1,0 +1,10 @@
+// packages/quote-service/tsconfig.json
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // "types": ["node"]   // now unnecessary — @types/node is installed
+                            // and gets picked up automatically
+    "noEmit": true
+  },
+  "include": ["src"]
+}
