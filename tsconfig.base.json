@@ -3,15 +3,12 @@
     "target": "ES2022",
     "lib": ["ES2022"],
     "module": "ESNext",
-    "moduleResolution": "Bundler",   // <- the knob: extensionless relative
-                                     //    imports Just Work, so
-                                     //    contract/src/index.ts can use
-                                     //    `export * from "./domain"`
+    "moduleResolution": "Bundler",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "verbatimModuleSyntax": true,   // enforces `import type` discipline
+    "verbatimModuleSyntax": true,
     "noUncheckedIndexedAccess": true,
     "resolveJsonModule": true
   }
