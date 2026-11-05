@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "noEmit": true  // consumed as TypeScript source; nothing to build
+    "noEmit": true
   },
   "include": ["src"]
 }

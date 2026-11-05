@@ -1,6 +1,3 @@
-
-// ===== packages/web/src/App.tsx =====
-//
 // Composition only: the form feeds the hook, the hook's status
 // decides which display the user sees. No async logic here.
 

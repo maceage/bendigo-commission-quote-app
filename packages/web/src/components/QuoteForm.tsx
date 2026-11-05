@@ -1,5 +1,3 @@
-// ===== packages/web/src/components/QuoteForm.tsx =====
-//
 // Captures loan details as STRINGS (HTML inputs are string-typed),
 // coerces to numbers at the boundary, and hands the caller a
 // QuoteRequest. Field-level validation happens here for instant

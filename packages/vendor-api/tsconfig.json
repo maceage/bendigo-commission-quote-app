@@ -1,8 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    // "types": ["node"]   // uncomment if you use process.env etc.,
-                            // requires @types/node in devDependencies
     "noEmit": true
   },
   "include": ["src"]
