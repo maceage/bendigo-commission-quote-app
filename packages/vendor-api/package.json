@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file=../../.env src/server.ts",
+    "build": "esbuild src/server.ts --bundle --platform=node --target=node20 --format=cjs --sourcemap --outfile=dist/server.cjs",
+    "start": "node --enable-source-maps dist/server.cjs",
     "test": "vitest run",
-    "build": "tsc -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@commission-quote/contract": "1.0.0",

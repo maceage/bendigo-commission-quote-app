@@ -3,18 +3,17 @@
 import express from "express";
 import { quoteRoutes } from "./routes/quote.routes";
 import { errorHandler } from "./middleware/error-handler";
+import type { QuoteProvider } from "./services/quote-provider";
 
-// The route layer depends on the SHAPE of the vendor client, not the
-// class itself — anything quote-shaped can be injected (test double).
-export interface QuoteProvider {
-  generateQuote(
-    request: import("@commission-quote/contract").QuoteRequest,
-  ): Promise<import("@commission-quote/contract").QuoteResponse>;
-}
+export type { QuoteProvider };
 
 export function createApp({ quoteService }: { quoteService: QuoteProvider }) {
   const app = express();
-  app.use(express.json());
+  app.disable("x-powered-by");
+  app.use(express.json({ limit: "10kb" }));
+  app.get("/healthz", (_req, res) => {
+    res.json({ status: "ok" });
+  });
   app.use("/api", quoteRoutes(quoteService));
   app.use(errorHandler);
   return app;

@@ -1,16 +1,18 @@
 // Route-level behaviour with a STUBBED QuoteProvider — no vendor,
-// no sockets, fully deterministic. This is what the QuoteProvider
-// interface exists for.
+// no sockets to a vendor, fully deterministic. This is what the
+// QuoteProvider interface exists for.
 
 import { describe, it, expect, afterEach, vi } from "vitest";
-import type { QuoteRequest, QuoteResponse } from "@commission-quote/contract";
+import type { QuoteError, QuoteRequest, QuoteResponse } from "@commission-quote/contract";
 import { createApp } from "../app";
+import { VendorClientError } from "../services/vendor-client";
 import { startApp, loanPayload } from "./test-server";
 
 let harness: Awaited<ReturnType<typeof startApp>> | undefined;
 
 afterEach(async () => {
   await harness?.close();
+  harness = undefined;
   vi.restoreAllMocks();
 });
 
@@ -32,6 +34,10 @@ async function post(body: string) {
   });
 }
 
+async function errorBody(res: Response): Promise<QuoteError> {
+  return (await res.json()) as QuoteError;
+}
+
 describe("POST /api/quotes", () => {
   it("returns 200 with the quote on success", async () => {
     const provider = stubProvider(async () => QUOTE);
@@ -47,27 +53,30 @@ describe("POST /api/quotes", () => {
     const provider = stubProvider(async () => QUOTE);
     harness = await startApp(createApp({ quoteService: provider }));
 
-    await post(loanPayload());
-    const arg = provider.generateQuote.mock.calls[0][0] as QuoteRequest;
-    expect(arg).toEqual({ loanAmount: 250000, loanTermInMonths: 36, riskBand: "MEDIUM" });
+    await post(loanPayload({ extraField: "should be stripped" }));
+    expect(provider.generateQuote).toHaveBeenCalledWith({
+      loanAmount: 250000,
+      loanTermInMonths: 36,
+      riskBand: "MEDIUM",
+    });
   });
 
   it.each([
-    { field: "loanAmount", value: -100, expected: 400 },
-    { field: "riskBand", value: "EXTREME", expected: 400 },
-    { field: "loanTermInMonths", value: 12.5, expected: 400 }, // non-integer
-  ])("returns 400 VALIDATION_ERROR for bad $field", async ({ field, value, expected }) => {
+    { field: "loanAmount", value: -100 },
+    { field: "riskBand", value: "EXTREME" },
+    { field: "loanTermInMonths", value: 12.5 }, // non-integer
+    { field: "loanTermInMonths", value: 601 }, // over the cap
+  ])("returns 400 VALIDATION_ERROR for bad $field ($value)", async ({ field, value }) => {
     const provider = stubProvider(async () => QUOTE);
     harness = await startApp(createApp({ quoteService: provider }));
 
     const res = await post(loanPayload({ [field]: value }));
-    expect(res.status).toBe(expected);
+    expect(res.status).toBe(400);
 
-    const body = await res.json();
+    const body = await errorBody(res);
     expect(body.code).toBe("VALIDATION_ERROR");
     // Message must be user-displayable, not a Zod dump.
-    expect(typeof body.message).toBe("string");
-    expect(body.message.length).toBeGreaterThan(0);
+    expect(body.message).toMatch(/^[A-Z].*\.$/);
 
     // Validation happens BEFORE the vendor is touched — no wasted call.
     expect(provider.generateQuote).not.toHaveBeenCalled();
@@ -78,21 +87,16 @@ describe("POST /api/quotes", () => {
     { code: "SERVICE_UNAVAILABLE", expectedStatus: 503 },
     { code: "VENDOR_ERROR", expectedStatus: 502 },
   ] as const)("maps $code to $expectedStatus", async ({ code, expectedStatus }) => {
-    const provider = stubProvider(() => Promise.reject({ code, message: "vendor blew up" }));
+    const provider = stubProvider(() => Promise.reject(new VendorClientError(code, "vendor blew up")));
     harness = await startApp(createApp({ quoteService: provider }));
 
     const res = await post(loanPayload());
     expect(res.status).toBe(expectedStatus);
-
-    const body = await res.json();
-    expect(body.code).toBe(code);
-    expect(body.message).toBe("vendor blew up");
+    expect(await errorBody(res)).toEqual({ code, message: "vendor blew up" });
   });
 
-  it("returns 500 with a safe message when the provider throws something untyped", async () => {
-    // Silence the route's deliberate alarm for THIS test — we assert
-    // it fired, so the console noise is proven rather than merely
-    // tolerated (and doesn't pollute every future test run).
+  it("returns 500 INTERNAL_ERROR with a safe message when the provider throws something untyped", async () => {
+    // Silence the deliberate alarm for THIS test — and assert it fired.
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const provider = stubProvider(() => Promise.reject(new Error("secret stack details")));
@@ -101,11 +105,23 @@ describe("POST /api/quotes", () => {
     const res = await post(loanPayload());
     expect(res.status).toBe(500);
 
-    const body = await res.json();
+    const body = await errorBody(res);
+    expect(body.code).toBe("INTERNAL_ERROR");
     expect(JSON.stringify(body)).not.toContain("secret stack details");
-
-    // The alarm rang — loudly, with the real details — on the server side.
     expect(errorSpy).toHaveBeenCalledWith("[quote-service] unexpected failure:", expect.any(Error));
+  });
+
+  it("survives an error that merely LOOKS typed (e.g. a DOMException with a numeric code)", async () => {
+    // Regression: duck-typing on `"code" in err` once let this through
+    // to res.status(undefined), which threw inside an async handler.
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const lookalike = Object.assign(new Error("The operation timed out."), { code: 23 });
+    const provider = stubProvider(() => Promise.reject(lookalike));
+    harness = await startApp(createApp({ quoteService: provider }));
+
+    const res = await post(loanPayload());
+    expect(res.status).toBe(500);
+    expect((await errorBody(res)).code).toBe("INTERNAL_ERROR");
   });
 
   it("returns 400 VALIDATION_ERROR for a malformed JSON body", async () => {
@@ -114,7 +130,24 @@ describe("POST /api/quotes", () => {
 
     const res = await post("{not json");
     expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.code).toBe("VALIDATION_ERROR");
+    expect((await errorBody(res)).code).toBe("VALIDATION_ERROR");
+  });
+
+  it("returns 413 for an oversized body", async () => {
+    const provider = stubProvider(async () => QUOTE);
+    harness = await startApp(createApp({ quoteService: provider }));
+
+    const res = await post(loanPayload({ padding: "x".repeat(20_000) }));
+    expect(res.status).toBe(413);
+    expect(provider.generateQuote).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /healthz", () => {
+  it("reports ok", async () => {
+    harness = await startApp(createApp({ quoteService: stubProvider(async () => QUOTE) }));
+    const res = await fetch(`${harness.url}/healthz`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: "ok" });
   });
 });

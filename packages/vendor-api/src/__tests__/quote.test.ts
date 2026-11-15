@@ -2,7 +2,7 @@
 // failureRate 0/1 makes the "random" simulation deterministic.
 
 import { describe, it, expect, afterEach } from "vitest";
-import { QuoteResponseSchema } from "@commission-quote/contract";
+import { QuoteResponseSchema, type QuoteResponse } from "@commission-quote/contract";
 import { createApp } from "../app";
 import { startApp, VALID_KEY, QUOTE_ENDPOINT, quotePayload } from "./test-server";
 
@@ -12,21 +12,23 @@ afterEach(async () => {
   await harness?.close();
 });
 
-async function post(body: string) {
+async function post(body: string, headers: Record<string, string> = {}) {
   return fetch(`${harness!.url}${QUOTE_ENDPOINT}`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-api-key": VALID_KEY },
+    headers: { "content-type": "application/json", "x-api-key": VALID_KEY, ...headers },
     body,
   });
 }
 
+const reliable = () => createApp({ apiKey: VALID_KEY, failureRate: 0, latencyMs: [0, 0] });
+
 describe("POST /quotes", () => {
   it("returns a contract-valid quote for valid loan details", async () => {
-    harness = await startApp(createApp({ apiKey: VALID_KEY, failureRate: 0, latencyMs: [0, 0] }));
+    harness = await startApp(reliable());
     const res = await post(quotePayload());
     expect(res.status).toBe(200);
 
-    const body = await res.json();
+    const body = (await res.json()) as QuoteResponse;
     // The strongest assertion we can make: the response validates
     // against the SAME shared schema the quote-service trusts. If the
     // vendor drifts from the contract, this test is the alarm.
@@ -38,19 +40,19 @@ describe("POST /quotes", () => {
   });
 
   it("returns 400 for a negative loan amount", async () => {
-    harness = await startApp(createApp({ apiKey: VALID_KEY, failureRate: 0, latencyMs: [0, 0] }));
+    harness = await startApp(reliable());
     const res = await post(quotePayload({ loanAmount: -100 }));
     expect(res.status).toBe(400);
   });
 
   it("returns 400 for an out-of-enum risk band", async () => {
-    harness = await startApp(createApp({ apiKey: VALID_KEY, failureRate: 0, latencyMs: [0, 0] }));
+    harness = await startApp(reliable());
     const res = await post(quotePayload({ riskBand: "EXTREME" }));
     expect(res.status).toBe(400);
   });
 
   it("returns 400 for string-typed numbers (classic form-output bug)", async () => {
-    harness = await startApp(createApp({ apiKey: VALID_KEY, failureRate: 0, latencyMs: [0, 0] }));
+    harness = await startApp(reliable());
     const res = await post(quotePayload({ loanAmount: "250000" }));
     expect(res.status).toBe(400);
   });
@@ -61,5 +63,27 @@ describe("POST /quotes", () => {
     harness = await startApp(createApp({ apiKey: VALID_KEY, failureRate: 1, latencyMs: [0, 0] }));
     const res = await post(quotePayload());
     expect(res.status).toBe(500);
+  });
+
+  it("returns 400 for a malformed JSON body", async () => {
+    harness = await startApp(reliable());
+    const res = await post("{not json");
+    expect(res.status).toBe(400);
+  });
+
+  it("returns the SAME quote for a repeated Idempotency-Key", async () => {
+    harness = await startApp(reliable());
+    const headers = { "idempotency-key": "retry-me" };
+    const first = (await (await post(quotePayload(), headers)).json()) as QuoteResponse;
+    const second = (await (await post(quotePayload(), headers)).json()) as QuoteResponse;
+    expect(second.quoteId).toBe(first.quoteId);
+  });
+
+  it("issues distinct quotes for distinct (or absent) Idempotency-Keys", async () => {
+    harness = await startApp(reliable());
+    const a = (await (await post(quotePayload(), { "idempotency-key": "a" })).json()) as QuoteResponse;
+    const b = (await (await post(quotePayload(), { "idempotency-key": "b" })).json()) as QuoteResponse;
+    const c = (await (await post(quotePayload())).json()) as QuoteResponse;
+    expect(new Set([a.quoteId, b.quoteId, c.quoteId]).size).toBe(3);
   });
 });

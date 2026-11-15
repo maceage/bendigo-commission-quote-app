@@ -19,9 +19,8 @@ export function generateQuote(payload: unknown): QuoteResponse {
   const request: QuoteRequest = QuoteRequestSchema.parse(payload);
 
   const commissionRate = COMMISSION_RATES[request.riskBand];
-  // Round to cents — currency as floats is a classic bug the reviewer
-  // may probe ("what would you change for real money?" -> integer
-  // cents or decimal types).
+  // Round to cents. A production system would use integer cents or a
+  // decimal type end-to-end rather than binary floats.
   const totalCommission = Math.round(request.loanAmount * commissionRate * 100) / 100;
 
   return {

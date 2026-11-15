@@ -3,8 +3,8 @@
 // with small, fast values injected via config.
 
 import { describe, it, expect, afterEach } from "vitest";
-import { createServer, type Server } from "node:http";
-import { VendorQuoteClient } from "../services/vendor-client";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { VendorClientError, VendorQuoteClient, type VendorClientConfig } from "../services/vendor-client";
 
 const KEY = "test-vendor-key-123";
 const REQUEST = { loanAmount: 250_000, loanTermInMonths: 36, riskBand: "MEDIUM" as const };
@@ -14,104 +14,182 @@ const GOOD_RESPONSE = JSON.stringify({
   totalCommission: 8750,
 });
 
-interface StubVendorOptions {
-  /** Statuses to return, in order; last one repeats. */
-  statuses: number[];
-  /** Delay before responding, to trigger client timeouts. */
-  delayMs?: number;
-}
-
 let server: Server | undefined;
 
 afterEach(async () => {
-  await new Promise<void>((resolve) => server?.close(() => resolve()));
+  server?.closeAllConnections();
+  await new Promise<void>((resolve) => (server ? server.close(() => resolve()) : resolve()));
   server = undefined;
 });
 
-async function startVendor({ statuses, delayMs = 0 }: StubVendorOptions): Promise<string> {
-  let call = 0;
-  server = createServer((req, res) => {
-    let body = "";
-    req.on("data", (chunk) => (body += chunk));
-    req.on("end", () => {
-      call++;
-      const status = statuses[Math.min(call - 1, statuses.length - 1)] ?? 500;
+type Handler = (req: IncomingMessage, res: ServerResponse, call: number) => void;
 
+/** Starts a stub vendor; the handler sees every request (after auth). */
+async function startVendor(handler: Handler): Promise<{ url: string; requests: IncomingMessage[] }> {
+  const requests: IncomingMessage[] = [];
+  server = createServer((req, res) => {
+    req.resume();
+    req.on("end", () => {
+      requests.push(req);
       if (req.headers["x-api-key"] !== KEY) {
         res.writeHead(401, { "content-type": "application/json" });
         res.end(JSON.stringify({ error: "Unauthorized." }));
         return;
       }
-
-      setTimeout(() => {
-        res.writeHead(status, { "content-type": "application/json" });
-        res.end(status === 200 ? GOOD_RESPONSE : JSON.stringify({ error: "boom" }));
-      }, delayMs);
+      handler(req, res, requests.length);
     });
   });
-  await new Promise<void>((resolve) => server!.listen(0, resolve));
+  await new Promise<void>((resolve) => server!.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   const port = typeof address === "object" && address !== null ? address.port : 0;
-  return `http://127.0.0.1:${port}`;
+  return { url: `http://127.0.0.1:${port}`, requests };
 }
 
-function makeClient(baseUrl: string) {
+/** Returns statuses in order; the last one repeats. */
+function statuses(list: number[], delayMs = 0): Handler {
+  return (_req, res, call) => {
+    const status = list[Math.min(call - 1, list.length - 1)] ?? 500;
+    setTimeout(() => {
+      res.writeHead(status, { "content-type": "application/json" });
+      res.end(status === 200 ? GOOD_RESPONSE : JSON.stringify({ error: "boom" }));
+    }, delayMs);
+  };
+}
+
+function makeClient(baseUrl: string, overrides: Partial<VendorClientConfig> = {}) {
   return new VendorQuoteClient({
     baseUrl,
     apiKey: KEY,
-    timeoutMs: 500,
+    timeoutMs: 300,
+    totalTimeoutMs: 5_000,
     maxAttempts: 3,
     baseDelayMs: 10, // fast backoff — tests stay quick
+    ...overrides,
   });
+}
+
+async function failureOf(promise: Promise<unknown>): Promise<VendorClientError> {
+  const err = await promise.then(
+    () => {
+      throw new Error("expected the call to fail");
+    },
+    (e: unknown) => e,
+  );
+  expect(err).toBeInstanceOf(VendorClientError);
+  return err as VendorClientError;
 }
 
 describe("VendorQuoteClient", () => {
   it("returns the quote when the vendor succeeds immediately", async () => {
-    const baseUrl = await startVendor({ statuses: [200] });
-    const quote = await makeClient(baseUrl).generateQuote(REQUEST);
+    const { url } = await startVendor(statuses([200]));
+    const quote = await makeClient(url).generateQuote(REQUEST);
     expect(quote.totalCommission).toBe(8750);
   });
 
   it("retries a 500 and succeeds on the second attempt", async () => {
-    const baseUrl = await startVendor({ statuses: [500, 200] });
-    const quote = await makeClient(baseUrl).generateQuote(REQUEST);
+    const { url, requests } = await startVendor(statuses([500, 200]));
+    const quote = await makeClient(url).generateQuote(REQUEST);
     expect(quote.quoteId).toBe("22222222-2222-4222-8222-222222222222");
+    expect(requests).toHaveLength(2);
+  });
+
+  it("sends the SAME idempotency key on every retry of one request", async () => {
+    const { url, requests } = await startVendor(statuses([500, 500, 200]));
+    await makeClient(url).generateQuote(REQUEST);
+    const keys = requests.map((r) => r.headers["idempotency-key"]);
+    expect(keys).toHaveLength(3);
+    expect(new Set(keys).size).toBe(1);
+    expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("uses a fresh idempotency key for each new request", async () => {
+    const { url, requests } = await startVendor(statuses([200]));
+    const client = makeClient(url);
+    await client.generateQuote(REQUEST);
+    await client.generateQuote(REQUEST);
+    expect(requests[0]?.headers["idempotency-key"]).not.toBe(requests[1]?.headers["idempotency-key"]);
   });
 
   it("gives up with SERVICE_UNAVAILABLE after exhausting retries", async () => {
-    const baseUrl = await startVendor({ statuses: [500] }); // always 500
-    const err = await makeClient(baseUrl)
-      .generateQuote(REQUEST)
-      .catch((e) => e);
+    const { url, requests } = await startVendor(statuses([500]));
+    const err = await failureOf(makeClient(url).generateQuote(REQUEST));
     expect(err.code).toBe("SERVICE_UNAVAILABLE");
+    expect(requests).toHaveLength(3);
+  });
+
+  it("retries 429 and honours Retry-After", async () => {
+    const { url } = await startVendor((_req, res, call) => {
+      if (call === 1) {
+        res.writeHead(429, { "retry-after": "0.2" });
+        res.end();
+        return;
+      }
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(GOOD_RESPONSE);
+    });
+    const started = Date.now();
+    await makeClient(url).generateQuote(REQUEST);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(190);
   });
 
   it("times out and reports VENDOR_TIMEOUT when the vendor hangs", async () => {
-    // 2s delay vs 500ms timeout: every attempt expires.
-    const baseUrl = await startVendor({ statuses: [200], delayMs: 2_000 });
-    const err = await makeClient(baseUrl)
-      .generateQuote(REQUEST)
-      .catch((e) => e);
+    const { url } = await startVendor(statuses([200], 2_000));
+    const err = await failureOf(makeClient(url).generateQuote(REQUEST));
     expect(err.code).toBe("VENDOR_TIMEOUT");
   });
 
-  it("does NOT retry a malformed 200 response (fails fast)", async () => {
-    // Vendor returns 200 but garbage shape — contract violation.
-    server = createServer((req, res) => {
-      let body = "";
-      req.on("data", (c) => (body += c));
-      req.on("end", () => {
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify({ surprise: "i am not a quote" }));
-      });
+  it("reports VENDOR_TIMEOUT when the vendor stalls mid-body (headers sent, body never finishes)", async () => {
+    // Regression: the timeout used to escape from response.json() as a
+    // raw DOMException instead of a typed error.
+    const { url } = await startVendor((_req, res) => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.write('{"quoteId":');
+      // ...and never end.
     });
-    await new Promise<void>((resolve) => server!.listen(0, resolve));
-    const address = server.address();
-    const port = typeof address === "object" && address !== null ? address.port : 0;
+    const err = await failureOf(makeClient(url, { maxAttempts: 1 }).generateQuote(REQUEST));
+    expect(err.code).toBe("VENDOR_TIMEOUT");
+  });
 
-    const err = await makeClient(`http://127.0.0.1:${port}`)
-      .generateQuote(REQUEST)
-      .catch((e) => e);
+  it("enforces the overall deadline across attempts", async () => {
+    const { url, requests } = await startVendor(statuses([200], 2_000));
+    const started = Date.now();
+    const err = await failureOf(
+      makeClient(url, { timeoutMs: 1_000, totalTimeoutMs: 400, maxAttempts: 5 }).generateQuote(REQUEST),
+    );
+    expect(err.code).toBe("VENDOR_TIMEOUT");
+    expect(Date.now() - started).toBeLessThan(900);
+    expect(requests).toHaveLength(1);
+  });
+
+  it("does NOT retry a malformed 200 response (fails fast)", async () => {
+    const { url, requests } = await startVendor((_req, res) => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ surprise: "i am not a quote" }));
+    });
+    const err = await failureOf(makeClient(url).generateQuote(REQUEST));
     expect(err.code).toBe("VENDOR_ERROR");
+    expect(requests).toHaveLength(1);
+  });
+
+  it("reports VENDOR_ERROR for a 200 whose body isn't JSON", async () => {
+    const { url } = await startVendor((_req, res) => {
+      res.writeHead(200, { "content-type": "text/html" });
+      res.end("<html>oops</html>");
+    });
+    const err = await failureOf(makeClient(url).generateQuote(REQUEST));
+    expect(err.code).toBe("VENDOR_ERROR");
+  });
+
+  it("does NOT retry a 401 (misconfigured key)", async () => {
+    const { url, requests } = await startVendor(statuses([200]));
+    const err = await failureOf(makeClient(url, { apiKey: "wrong" }).generateQuote(REQUEST));
+    expect(err.code).toBe("VENDOR_ERROR");
+    expect(requests).toHaveLength(1);
+  });
+
+  it("reports SERVICE_UNAVAILABLE when the vendor is unreachable", async () => {
+    // Port 1 on loopback: connection refused.
+    const err = await failureOf(makeClient("http://127.0.0.1:1").generateQuote(REQUEST));
+    expect(err.code).toBe("SERVICE_UNAVAILABLE");
   });
 });

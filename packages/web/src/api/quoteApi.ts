@@ -4,6 +4,7 @@
 // a base URL.
 
 import {
+  QuoteErrorSchema,
   QuoteResponseSchema,
   type QuoteError,
   type QuoteRequest,
@@ -11,70 +12,74 @@ import {
 } from "@commission-quote/contract";
 
 /**
- * Discriminated union so the UI never guesses what happened:
- *  - success          -> render quote
- *  - failure with envelope (our backend spoke) -> show its message/code
- *  - failure without envelope (proxy down, network) -> generic message
+ * Comfortably above quote-service's own overall vendor deadline (8s),
+ * so the server normally answers first with a precise error.
+ */
+export const REQUEST_TIMEOUT_MS = 15_000;
+
+/**
+ * Discriminated union so the UI never guesses what happened. Every
+ * failure — our backend's envelope, a proxy error page, a dropped
+ * connection — arrives as the same QuoteError shape.
  */
 export type QuoteResult = { ok: true; quote: QuoteResponse } | { ok: false; error: QuoteError };
 
-export async function requestQuote(request: QuoteRequest): Promise<QuoteResult> {
-  let response: Response;
+export interface RequestQuoteOptions {
+  /** Lets the caller cancel (e.g. a newer submission superseded this one). */
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}
+
+export async function requestQuote(
+  request: QuoteRequest,
+  { signal, timeoutMs = REQUEST_TIMEOUT_MS }: RequestQuoteOptions = {},
+): Promise<QuoteResult> {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
+
   try {
-    response = await fetch("/api/quotes", {
+    const response = await fetch("/api/quotes", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(request),
+      signal: combined,
     });
-  } catch {
-    // Network-level failure: dev server down, connection dropped.
-    // Nothing structured to parse — synthesise the envelope ourselves
-    // so the UI has ONE error shape to render, always.
+
+    if (!response.ok) {
+      return { ok: false, error: await parseErrorBody(response) };
+    }
+
+    // Belt-and-braces: the quote-service validates the vendor's
+    // response, but we re-validate HERE too, so a bad 200 body can
+    // never render as NaN.
+    const parsed = QuoteResponseSchema.safeParse(await response.json());
+    if (!parsed.success) {
+      return { ok: false, error: { code: "VENDOR_ERROR", message: "Received an invalid quote response." } };
+    }
+    return { ok: true, quote: parsed.data };
+  } catch (err) {
+    if (timeout.aborted) {
+      return {
+        ok: false,
+        error: { code: "VENDOR_TIMEOUT", message: "The quote request took too long. Please try again." },
+      };
+    }
+    if (signal?.aborted) throw err; // caller cancelled — let them ignore it
+    // Network-level failure: dev server down, connection dropped, or a
+    // 200 whose body wasn't JSON.
     return {
       ok: false,
       error: { code: "SERVICE_UNAVAILABLE", message: "Could not reach the quote service. Check it is running." },
     };
   }
-
-  // Try to read our error envelope; tolerate a non-JSON body (e.g.
-  // the dev proxy returning HTML for a 502) by falling back to a
-  // generic, still-user-safe message.
-  if (!response.ok) {
-    const error = await parseErrorBody(response);
-    return { ok: false, error };
-  }
-
-  const json: unknown = await response.json();
-
-  // Belt-and-braces: the quote-service validates the vendor's
-  // response, but we re-validate HERE too. Front-ends that blindly
-  // trust 200 bodies render NaN commission rates — one line
-  // of schema reuse prevents that whole bug class.
-  const parsed = QuoteResponseSchema.safeParse(json);
-  if (!parsed.success) {
-    return {
-      ok: false,
-      error: { code: "VENDOR_ERROR", message: "Received an invalid quote response." },
-    };
-  }
-
-  return { ok: true, quote: parsed.data };
 }
 
 async function parseErrorBody(response: Response): Promise<QuoteError> {
   try {
-    const body: unknown = await response.json();
-    if (
-      typeof body === "object" &&
-      body !== null &&
-      "code" in body &&
-      "message" in body &&
-      typeof (body as { message?: unknown }).message === "string"
-    ) {
-      return body as QuoteError;
-    }
+    const parsed = QuoteErrorSchema.safeParse(await response.json());
+    if (parsed.success) return parsed.data;
   } catch {
-    // Body wasn't JSON — fall through to the generic envelope.
+    // Body wasn't JSON (e.g. the dev proxy's HTML 502 page).
   }
   return {
     code: "VENDOR_ERROR",

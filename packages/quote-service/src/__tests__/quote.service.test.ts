@@ -1,11 +1,12 @@
 // Deliberately minimal: QuoteService is currently a delegation
 // seam. This pins its CONTRACT (same request in, same result out,
 // errors propagate untouched) so future extensions (caching,
-// idempotency keys, auditing) have a starting point to modify.
+// auditing) have a starting point to modify.
 
 import { describe, it, expect, vi } from "vitest";
 import type { QuoteRequest, QuoteResponse } from "@commission-quote/contract";
 import { QuoteService } from "../services/quote.service";
+import { VendorClientError } from "../services/vendor-client";
 
 const REQUEST: QuoteRequest = {
   loanAmount: 250_000,
@@ -22,7 +23,7 @@ const QUOTE: QuoteResponse = {
 describe("QuoteService", () => {
   it("delegates to the vendor client and returns its quote", async () => {
     const vendorClient = { generateQuote: vi.fn().mockResolvedValue(QUOTE) };
-    const service = new QuoteService(vendorClient as never);
+    const service = new QuoteService(vendorClient);
 
     const result = await service.generateQuote(REQUEST);
 
@@ -31,10 +32,10 @@ describe("QuoteService", () => {
   });
 
   it("propagates vendor failures unchanged — no swallowing here", async () => {
-    const failure = { code: "VENDOR_TIMEOUT", message: "Vendor timed out." };
+    const failure = new VendorClientError("VENDOR_TIMEOUT", "Vendor timed out.");
     const vendorClient = { generateQuote: vi.fn().mockRejectedValue(failure) };
-    const service = new QuoteService(vendorClient as never);
+    const service = new QuoteService(vendorClient);
 
-    await expect(service.generateQuote(REQUEST)).rejects.toEqual(failure);
+    await expect(service.generateQuote(REQUEST)).rejects.toBe(failure);
   });
 });

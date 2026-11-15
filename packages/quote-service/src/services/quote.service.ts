@@ -1,21 +1,17 @@
 // Orchestration: route -> [validate] -> here -> vendor client -> route.
-// Contains NO commission math — the vendor owns that. This layer exists
-// so the route stays a thin translator and the vendor client stays a
-// pure HTTP seam; anything that's "policy" about the interaction lives
-// here (today: minimal; but this is where rate limiting, caching of
-// identical quote requests, auditing, or idempotency keys would go
-// when the app grows).
+// Contains NO commission math — the vendor owns that. This layer keeps
+// the route a thin translator and the vendor client a pure HTTP seam;
+// policy about the interaction (rate limiting, caching identical
+// requests, auditing) belongs here as the app grows.
 
 import type { QuoteRequest, QuoteResponse } from "@commission-quote/contract";
-import type { VendorQuoteClient } from "./vendor-client";
+import type { QuoteProvider } from "./quote-provider";
 
-export class QuoteService {
-  constructor(private readonly vendorClient: VendorQuoteClient) {}
+export class QuoteService implements QuoteProvider {
+  constructor(private readonly vendorClient: QuoteProvider) {}
 
   async generateQuote(request: QuoteRequest): Promise<QuoteResponse> {
-    // Input has ALREADY been validated by the route — re-validating
-    // here would duplicate work; trusting it here is fine because the
-    // boundary (route) enforces it.
+    // Input has already been validated at the route boundary.
     return this.vendorClient.generateQuote(request);
   }
 }

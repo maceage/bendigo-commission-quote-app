@@ -1,58 +1,43 @@
 // One route. Thin by design: validate, delegate, translate failures.
 // No business logic lives here on purpose.
 
-import { Router, type Request, type Response } from "express";
-import { QuoteRequestSchema, type QuoteError, type QuoteErrorCode } from "@commission-quote/contract";
-import type { QuoteProvider } from "../app";
-import type { VendorClientError } from "../services/vendor-client";
+import { Router, type NextFunction, type Request, type Response } from "express";
+import { QUOTE_ERROR_STATUS, QuoteRequestSchema, type QuoteError } from "@commission-quote/contract";
+import type { QuoteProvider } from "../services/quote-provider";
+import { VendorClientError } from "../services/vendor-client";
 
-// Maps the vendor client's typed failure to the contract's error
-// envelope with the HTTP status the UI expects.
-function statusFor(code: QuoteErrorCode): number {
-  switch (code) {
-    case "VALIDATION_ERROR":
-      return 400;
-    case "VENDOR_TIMEOUT":
-      return 504;
-    case "SERVICE_UNAVAILABLE":
-      return 503;
-    case "VENDOR_ERROR":
-      return 502;
-  }
+function sendError(res: Response, error: QuoteError): void {
+  res.status(QUOTE_ERROR_STATUS[error.code]).json(error);
 }
 
 export function quoteRoutes(quoteService: QuoteProvider): Router {
   const router = Router();
 
-  router.post("/quotes", async (req: Request, res: Response) => {
-    // Validate at OUR boundary — never trust client input, and don't
-    // waste a round-trip to the vendor on garbage.
-    const parsed = QuoteRequestSchema.safeParse(req.body);
-    if (!parsed.success) {
-      const error: QuoteError = {
-        code: "VALIDATION_ERROR",
-        // Zod's first issue message is precise AND user-safe — e.g.
-        // "loanAmount must be greater than zero". Shows we surface
-        // useful feedback rather than a vague "invalid input".
-        message: parsed.error.issues[0]?.message ?? "Invalid loan details.",
-      };
-      res.status(statusFor(error.code)).json(error);
-      return;
-    }
-
+  router.post("/quotes", async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // Validate at OUR boundary — never trust client input, and don't
+      // waste a round-trip to the vendor on garbage.
+      const parsed = QuoteRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        // The contract's messages are written to be shown to users.
+        sendError(res, {
+          code: "VALIDATION_ERROR",
+          message: parsed.error.issues[0]?.message ?? "Invalid loan details.",
+        });
+        return;
+      }
+
       const quote = await quoteService.generateQuote(parsed.data);
       res.status(200).json(quote);
     } catch (err) {
-      const failure = err as VendorClientError;
-      // Defensive: anything that reaches here without our typed shape
-      // is OUR bug — log loudly, give the user nothing sensitive.
-      if (!("code" in (failure ?? {})) || !("message" in failure)) {
-        console.error("[quote-service] unexpected failure:", err);
-        res.status(500).json({ code: "VENDOR_ERROR", message: "Something went wrong." } satisfies QuoteError);
+      if (err instanceof VendorClientError) {
+        sendError(res, { code: err.code, message: err.message });
         return;
       }
-      res.status(statusFor(failure.code)).json({ code: failure.code, message: failure.message });
+      // Anything else is OUR bug: the error handler logs it loudly and
+      // gives the user nothing sensitive. Express 4 doesn't catch async
+      // rejections, so hand it over explicitly.
+      next(err);
     }
   });
 

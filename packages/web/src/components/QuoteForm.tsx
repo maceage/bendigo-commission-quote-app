@@ -1,10 +1,17 @@
 // Captures loan details as STRINGS (HTML inputs are string-typed),
-// coerces to numbers at the boundary, and hands the caller a
-// QuoteRequest. Field-level validation happens here for instant
-// feedback; the backend remains the authority (defence in depth).
+// converts them to numbers at the submit boundary, and validates with
+// the SAME shared schema the backend uses — so the form and the API
+// can never disagree about what's valid. The backend stays the
+// authority (defence in depth).
 
 import { useState, type FormEvent } from "react";
-import { RISK_BANDS, type QuoteRequest } from "@commission-quote/contract";
+import {
+  MAX_LOAN_AMOUNT,
+  MAX_LOAN_TERM_MONTHS,
+  QuoteRequestSchema,
+  RISK_BANDS,
+  type QuoteRequest,
+} from "@commission-quote/contract";
 
 interface QuoteFormProps {
   onSubmit: (request: QuoteRequest) => void;
@@ -17,15 +24,38 @@ interface Fields {
   riskBand: string;
 }
 
+type FieldErrors = Partial<Record<keyof Fields, string>>;
+
 const INITIAL_FIELDS: Fields = {
   loanAmount: "",
   loanTermInMonths: "",
   riskBand: "MEDIUM",
 };
 
+/** Blank -> undefined (so the schema says "Enter a …"), else a number (possibly NaN). */
+function toNumber(value: string): number | undefined {
+  return value.trim() === "" ? undefined : Number(value);
+}
+
+function validate(fields: Fields): { request: QuoteRequest } | { errors: FieldErrors } {
+  const parsed = QuoteRequestSchema.safeParse({
+    loanAmount: toNumber(fields.loanAmount),
+    loanTermInMonths: toNumber(fields.loanTermInMonths),
+    riskBand: fields.riskBand,
+  });
+  if (parsed.success) return { request: parsed.data };
+
+  const errors: FieldErrors = {};
+  for (const issue of parsed.error.issues) {
+    const field = issue.path[0] as keyof Fields | undefined;
+    if (field !== undefined && errors[field] === undefined) errors[field] = issue.message;
+  }
+  return { errors };
+}
+
 export function QuoteForm({ onSubmit, loading }: QuoteFormProps) {
   const [fields, setFields] = useState<Fields>(INITIAL_FIELDS);
-  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof Fields, string>>>({});
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const update = (name: keyof Fields, value: string) => {
     setFields((f) => ({ ...f, [name]: value }));
@@ -35,26 +65,12 @@ export function QuoteForm({ onSubmit, loading }: QuoteFormProps) {
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-
-    // Coerce ONCE at the submit boundary — components downstream
-    // only ever see real numbers, never strings-that-look-like-numbers.
-    const loanAmount = Number(fields.loanAmount);
-    const loanTermInMonths = Number(fields.loanTermInMonths);
-
-    const errors: typeof fieldErrors = {};
-    if (!Number.isFinite(loanAmount) || loanAmount <= 0) {
-      errors.loanAmount = "Enter a loan amount greater than zero.";
-    }
-    if (!Number.isInteger(loanTermInMonths) || loanTermInMonths <= 0) {
-      errors.loanTermInMonths = "Enter a whole number of months.";
-    }
-
-    if (Object.keys(errors).length > 0) {
-      setFieldErrors(errors);
+    const result = validate(fields);
+    if ("errors" in result) {
+      setFieldErrors(result.errors);
       return;
     }
-
-    onSubmit({ loanAmount, loanTermInMonths, riskBand: fields.riskBand as QuoteRequest["riskBand"] });
+    onSubmit(result.request);
   };
 
   return (
@@ -65,8 +81,9 @@ export function QuoteForm({ onSubmit, loading }: QuoteFormProps) {
           id="loanAmount"
           name="loanAmount"
           type="number"
-          min="1"
-          step="1"
+          min="0.01"
+          max={MAX_LOAN_AMOUNT}
+          step="0.01"
           inputMode="decimal"
           value={fields.loanAmount}
           onChange={(e) => update("loanAmount", e.target.value)}
@@ -89,6 +106,7 @@ export function QuoteForm({ onSubmit, loading }: QuoteFormProps) {
           name="loanTermInMonths"
           type="number"
           min="1"
+          max={MAX_LOAN_TERM_MONTHS}
           step="1"
           inputMode="numeric"
           value={fields.loanTermInMonths}
@@ -112,6 +130,8 @@ export function QuoteForm({ onSubmit, loading }: QuoteFormProps) {
           name="riskBand"
           value={fields.riskBand}
           onChange={(e) => update("riskBand", e.target.value)}
+          aria-invalid={fieldErrors.riskBand !== undefined}
+          aria-describedby={fieldErrors.riskBand !== undefined ? "riskBand-error" : undefined}
           disabled={loading}
         >
           {RISK_BANDS.map((band) => (
@@ -120,6 +140,11 @@ export function QuoteForm({ onSubmit, loading }: QuoteFormProps) {
             </option>
           ))}
         </select>
+        {fieldErrors.riskBand !== undefined && (
+          <p className="field-error" id="riskBand-error" role="alert">
+            {fieldErrors.riskBand}
+          </p>
+        )}
       </div>
 
       <button type="submit" disabled={loading}>

@@ -1,27 +1,26 @@
 // The single error renderer. Because every failure path funnels
 // into QuoteError (thanks to quoteApi's union), the UI needs
-// exactly one of these. aria-live announces failures to
+// exactly one of these. role="alert" announces failures to
 // screen readers without stealing focus.
 
 import type { QuoteError } from "@commission-quote/contract";
 
 const ERROR_HEADING: Record<QuoteError["code"], string> = {
   VALIDATION_ERROR: "Check your loan details",
+  INTERNAL_ERROR: "Something went wrong",
   VENDOR_TIMEOUT: "The quote provider timed out",
   VENDOR_ERROR: "Couldn't generate a quote",
   SERVICE_UNAVAILABLE: "Quote service unavailable",
 };
+
+const TRANSIENT: ReadonlySet<QuoteError["code"]> = new Set(["VENDOR_TIMEOUT", "SERVICE_UNAVAILABLE"]);
 
 export function Alert({ error }: { error: QuoteError }) {
   return (
     <div className="alert alert-error" role="alert">
       <strong>{ERROR_HEADING[error.code]}</strong>
       <p>{error.message}</p>
-      {/* Friendly nudge when the failure is our simulated vendor's
-          randomness — retrying genuinely helps in that case. */}
-      {(error.code === "VENDOR_TIMEOUT" || error.code === "SERVICE_UNAVAILABLE") && (
-        <p className="alert-hint">This is usually temporary — please try again.</p>
-      )}
+      {TRANSIENT.has(error.code) && <p className="alert-hint">This is usually temporary — please try again.</p>}
     </div>
   );
 }

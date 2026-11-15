@@ -2,6 +2,7 @@
 // logic lives elsewhere so tests never need to spawn a server.
 
 import { createApp } from "./app";
+import { QuoteService } from "./services/quote.service";
 import { VendorQuoteClient } from "./services/vendor-client";
 
 const PORT = Number(process.env.PORT ?? 4000);
@@ -18,13 +19,13 @@ if (!API_KEY) {
 
 // The ONLY place the vendor API key exists in this app: constructed
 // once here, held privately inside the client. Routes receive the
-// client via dependency injection — they couldn't leak the key if
-// they tried.
+// service via dependency injection and never see the key.
 const vendorClient = new VendorQuoteClient({
   baseUrl: VENDOR_BASE_URL,
   apiKey: API_KEY,
 });
+const quoteService = new QuoteService(vendorClient);
 
-createApp({ quoteService: vendorClient }).listen(PORT, () => {
+createApp({ quoteService }).listen(PORT, () => {
   console.log(`[quote-service] listening on :${PORT}, vendor at ${VENDOR_BASE_URL}`);
 });

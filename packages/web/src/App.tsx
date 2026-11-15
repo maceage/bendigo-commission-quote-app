@@ -7,15 +7,15 @@ import { QuoteResult } from "./components/QuoteResult";
 import { Alert } from "./components/Alert";
 
 export default function App() {
-  const { status, quote, error, generate } = useQuote();
+  const { state, generate } = useQuote();
 
   return (
     <main className="app">
       <h1>Commission Quote</h1>
-      <QuoteForm onSubmit={generate} loading={status === "loading"} />
+      <QuoteForm onSubmit={generate} loading={state.status === "loading"} />
 
-      {status === "success" && quote !== null && <QuoteResult quote={quote} />}
-      {status === "error" && error !== null && <Alert error={error} />}
+      {state.status === "success" && <QuoteResult quote={state.quote} />}
+      {state.status === "error" && <Alert error={state.error} />}
     </main>
   );
 }
