@@ -10,10 +10,7 @@ export async function startApp(app: Express): Promise<{ url: string; close: () =
   const port = typeof address === "object" && address !== null ? address.port : 0;
   return {
     url: `http://127.0.0.1:${port}`,
-    close: () =>
-      new Promise<void>((resolve, reject) =>
-        server.close((err) => (err ? reject(err) : resolve()))
-      ),
+    close: () => new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve()))),
   };
 }
 
@@ -28,4 +25,3 @@ export function quotePayload(overrides: Record<string, unknown> = {}): string {
     ...overrides,
   });
 }
-

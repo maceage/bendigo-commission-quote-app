@@ -7,9 +7,9 @@ import { errorHandler } from "./middleware/error-handler";
 // The route layer depends on the SHAPE of the vendor client, not the
 // class itself — anything quote-shaped can be injected (test double).
 export interface QuoteProvider {
-  generateQuote(request: import("@commission-quote/contract").QuoteRequest): Promise<
-    import("@commission-quote/contract").QuoteResponse
-  >;
+  generateQuote(
+    request: import("@commission-quote/contract").QuoteRequest,
+  ): Promise<import("@commission-quote/contract").QuoteResponse>;
 }
 
 export function createApp({ quoteService }: { quoteService: QuoteProvider }) {

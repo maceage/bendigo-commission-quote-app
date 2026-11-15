@@ -18,9 +18,9 @@ export type VendorClientError =
 interface VendorClientConfig {
   baseUrl: string;
   apiKey: string;
-  timeoutMs?: number;    // per-attempt timeout
-  maxAttempts?: number;  // total attempts (retries = maxAttempts - 1)
-  baseDelayMs?: number;  // backoff base
+  timeoutMs?: number; // per-attempt timeout
+  maxAttempts?: number; // total attempts (retries = maxAttempts - 1)
+  baseDelayMs?: number; // backoff base
 }
 
 const DEFAULTS = { timeoutMs: 3_000, maxAttempts: 3, baseDelayMs: 400 };

@@ -80,14 +80,18 @@ describe("VendorQuoteClient", () => {
 
   it("gives up with SERVICE_UNAVAILABLE after exhausting retries", async () => {
     const baseUrl = await startVendor({ statuses: [500] }); // always 500
-    const err = await makeClient(baseUrl).generateQuote(REQUEST).catch((e) => e);
+    const err = await makeClient(baseUrl)
+      .generateQuote(REQUEST)
+      .catch((e) => e);
     expect(err.code).toBe("SERVICE_UNAVAILABLE");
   });
 
   it("times out and reports VENDOR_TIMEOUT when the vendor hangs", async () => {
     // 2s delay vs 500ms timeout: every attempt expires.
     const baseUrl = await startVendor({ statuses: [200], delayMs: 2_000 });
-    const err = await makeClient(baseUrl).generateQuote(REQUEST).catch((e) => e);
+    const err = await makeClient(baseUrl)
+      .generateQuote(REQUEST)
+      .catch((e) => e);
     expect(err.code).toBe("VENDOR_TIMEOUT");
   });
 

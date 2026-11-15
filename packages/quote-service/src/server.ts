@@ -11,7 +11,7 @@ const VENDOR_BASE_URL = process.env.VENDOR_API_BASE_URL ?? "http://localhost:400
 
 if (!API_KEY) {
   console.error(
-    "VENDOR_API_KEY must be set — the vendor API key must never be defaulted or hardcoded (see .env.example)"
+    "VENDOR_API_KEY must be set — the vendor API key must never be defaulted or hardcoded (see .env.example)",
   );
   process.exit(1);
 }

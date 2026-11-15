@@ -20,9 +20,7 @@ const QUOTE: QuoteResponse = {
   totalCommission: 8750,
 };
 
-function stubProvider(
-  impl: (req: QuoteRequest) => Promise<QuoteResponse>
-) {
+function stubProvider(impl: (req: QuoteRequest) => Promise<QuoteResponse>) {
   return { generateQuote: vi.fn(impl) };
 }
 
@@ -80,9 +78,7 @@ describe("POST /api/quotes", () => {
     { code: "SERVICE_UNAVAILABLE", expectedStatus: 503 },
     { code: "VENDOR_ERROR", expectedStatus: 502 },
   ] as const)("maps $code to $expectedStatus", async ({ code, expectedStatus }) => {
-    const provider = stubProvider(() =>
-      Promise.reject({ code, message: "vendor blew up" })
-    );
+    const provider = stubProvider(() => Promise.reject({ code, message: "vendor blew up" }));
     harness = await startApp(createApp({ quoteService: provider }));
 
     const res = await post(loanPayload());
@@ -97,7 +93,7 @@ describe("POST /api/quotes", () => {
     // Silence the route's deliberate alarm for THIS test — we assert
     // it fired, so the console noise is proven rather than merely
     // tolerated (and doesn't pollute every future test run).
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => { });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const provider = stubProvider(() => Promise.reject(new Error("secret stack details")));
     harness = await startApp(createApp({ quoteService: provider }));

@@ -48,12 +48,7 @@ export type QuoteResponse = z.infer<typeof QuoteResponseSchema>;
  *   504 -> VENDOR_TIMEOUT     (vendor exceeded our timeout after retries)
  *   503 -> SERVICE_UNAVAILABLE(all vendor attempts failed)
  */
-export const QUOTE_ERROR_CODES = [
-  "VALIDATION_ERROR",
-  "VENDOR_ERROR",
-  "VENDOR_TIMEOUT",
-  "SERVICE_UNAVAILABLE",
-] as const;
+export const QUOTE_ERROR_CODES = ["VALIDATION_ERROR", "VENDOR_ERROR", "VENDOR_TIMEOUT", "SERVICE_UNAVAILABLE"] as const;
 export type QuoteErrorCode = (typeof QUOTE_ERROR_CODES)[number];
 
 export const QuoteErrorSchema = z.object({

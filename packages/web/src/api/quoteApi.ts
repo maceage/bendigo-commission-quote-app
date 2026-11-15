@@ -16,9 +16,7 @@ import {
  *  - failure with envelope (our backend spoke) -> show its message/code
  *  - failure without envelope (proxy down, network) -> generic message
  */
-export type QuoteResult =
-  | { ok: true; quote: QuoteResponse }
-  | { ok: false; error: QuoteError };
+export type QuoteResult = { ok: true; quote: QuoteResponse } | { ok: false; error: QuoteError };
 
 export async function requestQuote(request: QuoteRequest): Promise<QuoteResult> {
   let response: Response;

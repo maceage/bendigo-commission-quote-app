@@ -25,12 +25,12 @@ Key points:
 
 TypeScript throughout (one language, shared types across all packages), npm workspaces monorepo:
 
-| Package | Role |
-|---|---|
-| `packages/contract` | Shared domain types + Zod schemas (single source of truth) |
-| `packages/vendor-api` | Mock third-party Commission Quote API (API-key auth, simulated latency + random 20% failures) |
-| `packages/quote-service` | Our backend: validation, API-key custody, retry/timeout, error mapping |
-| `packages/web` | React + Vite front-end (form, loading/error/success states) |
+| Package                  | Role                                                                                          |
+| ------------------------ | --------------------------------------------------------------------------------------------- |
+| `packages/contract`      | Shared domain types + Zod schemas (single source of truth)                                    |
+| `packages/vendor-api`    | Mock third-party Commission Quote API (API-key auth, simulated latency + random 20% failures) |
+| `packages/quote-service` | Our backend: validation, API-key custody, retry/timeout, error mapping                        |
+| `packages/web`           | React + Vite front-end (form, loading/error/success states)                                   |
 
 Tests: Vitest. No ORM/database - deliberately out of scope for this challenge.
 
@@ -90,7 +90,7 @@ npm test -w packages/quote-service
 
 - **vendor-api / auth** - the security requirement: requests without a valid `x-api-key` are rejected 401; wrong key is indistinguishable from missing key.
 - **vendor-api / quote** - responses validate against the shared `QuoteResponseSchema`; invalid payloads (negative amount, bad risk band, string-typed number) return 400; the failure simulation knob (`failureRate: 1`) proves the random-error behaviour deterministically.
-- **quote-service / routes** - with a stubbed `QuoteProvider` (no sockets): validation happens *before* the vendor is called; typed vendor failures map to 504/503/502; internal error details never leak to the client while still being logged server-side; malformed JSON bodies return a clean 400.
+- **quote-service / routes** - with a stubbed `QuoteProvider` (no sockets): validation happens _before_ the vendor is called; typed vendor failures map to 504/503/502; internal error details never leak to the client while still being logged server-side; malformed JSON bodies return a clean 400.
 - **quote-service / vendor-client** - against a real throwaway HTTP server: success, retry-then-succeed on a transient 500, exhaustion → `SERVICE_UNAVAILABLE`, hung vendor → `VENDOR_TIMEOUT`, and malformed 200 responses fail fast without retry.
 
 Randomness is made deterministic via injected config (`failureRate: 0/1`, fixed latency, fast backoff) rather than sleeps or flaky probabilistic assertions.
