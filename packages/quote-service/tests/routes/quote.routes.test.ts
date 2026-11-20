@@ -167,6 +167,19 @@ describe("POST /api/quotes", () => {
     expect((await errorBody(res)).code).toBe("VALIDATION_ERROR");
   });
 
+  it("asks for a JSON object when the body isn't sent as JSON", async () => {
+    const provider = stubProvider(async () => QUOTE);
+    harness = await startApp(createApp({ quoteService: provider }));
+
+    const res = await post(loanPayload(), { "content-type": "text/plain" });
+    expect(res.status).toBe(400);
+    expect(await errorBody(res)).toMatchObject({
+      code: "VALIDATION_ERROR",
+      message: "Send the loan details as a JSON object.",
+    });
+    expect(provider.generateQuote).not.toHaveBeenCalled();
+  });
+
   it("returns 413 for an oversized body", async () => {
     const provider = stubProvider(async () => QUOTE);
     harness = await startApp(createApp({ quoteService: provider }));

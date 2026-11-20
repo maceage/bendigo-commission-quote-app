@@ -42,20 +42,24 @@ function loanAmountProblem(amount: string): string | undefined {
  * Money travels as a decimal string ("250000.00"), never a JSON number,
  * so no hop parses it into a float; see money.ts.
  */
-export const QuoteRequestSchema = z.object({
-  loanAmount: z
-    .string({ required_error: "Enter a loan amount.", invalid_type_error: "Loan amount must be a decimal string." })
-    .superRefine((amount, ctx) => {
-      const problem = loanAmountProblem(amount);
-      if (problem !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, message: problem });
-    }),
-  loanTermInMonths: z
-    .number({ required_error: "Enter a loan term.", invalid_type_error: "Loan term must be a number." })
-    .int("Loan term must be a whole number of months.")
-    .positive("Loan term must be greater than zero.")
-    .max(MAX_LOAN_TERM_MONTHS, "Loan term must be 600 months (50 years) or fewer."),
-  riskBand: z.enum(RISK_BANDS, { message: "Choose a risk band: LOW, MEDIUM or HIGH." }),
-});
+export const QuoteRequestSchema = z.object(
+  {
+    loanAmount: z
+      .string({ required_error: "Enter a loan amount.", invalid_type_error: "Loan amount must be a decimal string." })
+      .superRefine((amount, ctx) => {
+        const problem = loanAmountProblem(amount);
+        if (problem !== undefined) ctx.addIssue({ code: z.ZodIssueCode.custom, message: problem });
+      }),
+    loanTermInMonths: z
+      .number({ required_error: "Enter a loan term.", invalid_type_error: "Loan term must be a number." })
+      .int("Loan term must be a whole number of months.")
+      .positive("Loan term must be greater than zero.")
+      .max(MAX_LOAN_TERM_MONTHS, "Loan term must be 600 months (50 years) or fewer."),
+    riskBand: z.enum(RISK_BANDS, { message: "Choose a risk band: LOW, MEDIUM or HIGH." }),
+  },
+  // E.g. a request sent without a JSON content-type, which leaves no body.
+  { message: "Send the loan details as a JSON object." },
+);
 export type QuoteRequest = z.infer<typeof QuoteRequestSchema>;
 
 /**

@@ -31,6 +31,16 @@ describe("QuoteRequestSchema loanAmount", () => {
   });
 });
 
+describe("QuoteRequestSchema body", () => {
+  // E.g. a request with no JSON content-type, which leaves the body unparsed.
+  it.each([[undefined], [null], [[]], ["loan"]])("asks for a JSON object when given %j", (body) => {
+    const parsed = QuoteRequestSchema.safeParse(body);
+    expect(parsed.success ? undefined : parsed.error.issues[0]?.message).toBe(
+      "Send the loan details as a JSON object.",
+    );
+  });
+});
+
 describe("QuoteResponseSchema totalCommission", () => {
   const response = (totalCommission: unknown) => ({ quoteId: "Q-1", commissionRate: 0.035, totalCommission });
 
