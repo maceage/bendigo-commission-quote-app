@@ -10,6 +10,9 @@ services:
       dockerfile: docker/backend.Dockerfile
       args:
         PACKAGE: vendor-api
+    # tini as PID 1: it passes SIGTERM on to Node, which as PID 1 itself
+    # would ignore it, so a stop takes the 10s timeout and a SIGKILL.
+    init: true
     environment:
       VENDOR_API_KEY: ${VENDOR_API_KEY:?set VENDOR_API_KEY (see .env.example)}
       VENDOR_FAILURE_RATE: ${VENDOR_FAILURE_RATE:-}
@@ -31,6 +34,8 @@ services:
       dockerfile: docker/backend.Dockerfile
       args:
         PACKAGE: quote-service
+    # As for vendor-api: tini passes SIGTERM on to Node.
+    init: true
     environment:
       VENDOR_API_KEY: ${VENDOR_API_KEY:?set VENDOR_API_KEY (see .env.example)}
       VENDOR_API_BASE_URL: http://vendor-api:4001
