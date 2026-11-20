@@ -92,7 +92,7 @@ describe("IdempotencyStore", () => {
   ])("refuses to start from a file that is %s", (_what, contents) => {
     writeFileSync(file, contents);
     expect(() => new IdempotencyStore(2, file)).toThrow(
-      `Idempotency file ${file} isn't a valid list of issued quotes.`,
+      `Idempotency file ${file} isn't a valid list of issued quotes (delete it to start afresh`,
     );
   });
 

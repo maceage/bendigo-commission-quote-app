@@ -71,7 +71,12 @@ function readQuotes(file: string): [string, IssuedQuote][] {
   try {
     return StoredQuotesSchema.parse(JSON.parse(text));
   } catch (err) {
-    throw new Error(`Idempotency file ${file} isn't a valid list of issued quotes.`, { cause: err });
+    // No full stop: pino's error serializer appends ": <cause>".
+    throw new Error(
+      `Idempotency file ${file} isn't a valid list of issued quotes (delete it to start afresh; ` +
+        "under Docker Compose, docker compose down --volumes)",
+      { cause: err },
+    );
   }
 }
 

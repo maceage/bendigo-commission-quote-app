@@ -16,6 +16,15 @@ try {
 }
 
 const { port, ...appOptions } = config;
-createApp({ ...appOptions, logger }).listen(port, () => {
+let app: ReturnType<typeof createApp>;
+try {
+  app = createApp({ ...appOptions, logger });
+} catch (err) {
+  // E.g. an idempotency file it can't trust: one fatal log line, not a raw stack trace.
+  logger.fatal({ err }, "couldn't start");
+  process.exit(1);
+}
+
+app.listen(port, () => {
   logger.info({ port }, "mock Commission Quote API listening");
 });
