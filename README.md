@@ -68,7 +68,7 @@ This starts all three components with `concurrently` (colour-coded output):
 
 Open **http://localhost:5173**, enter loan details, and press **Generate Quote**.
 
-Expect roughly 1 in 5 requests to hit the vendor's simulated random failure. The retry logic absorbs most of them invisibly; occasionally you will see a friendly "quote provider timed out / try again" message - that is the error path doing its job.
+By default roughly 1 in 5 vendor calls hits the simulated random failure. quote-service retries up to 3 times, so a user only sees an error when every attempt fails (about 1 in 125 quotes). To see the error state on demand, set `VENDOR_FAILURE_RATE` in `.env` and restart: `1` fails every request (the UI shows "Quote service unavailable"), and a value like `0.7` gives a mix of successes and failures. It must be between 0 and 1, or the vendor exits at startup.
 
 All services fail fast at startup if `VENDOR_API_KEY` is missing: the process exits with a clear message rather than starting insecure. Both backends expose `GET /healthz`.
 
