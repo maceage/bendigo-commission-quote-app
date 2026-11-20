@@ -33,9 +33,15 @@ export function useQuote() {
       const result = await requestQuote(request, { signal: controller.signal });
       if (controller.signal.aborted) return;
       setState(result.ok ? { status: "success", quote: result.quote } : { status: "error", error: result.error });
-    } catch (err) {
+    } catch {
       if (controller.signal.aborted) return; // superseded — not an error
-      throw err;
+      // requestQuote returns every failure it expects, so only a bug gets
+      // here. Show an error rather than rethrowing: nothing catches it, so
+      // the form would stay on "Generating quote…" for good.
+      setState({
+        status: "error",
+        error: { code: "INTERNAL_ERROR", message: "Something went wrong. Please try again." },
+      });
     } finally {
       if (inFlight.current === controller) inFlight.current = null;
     }

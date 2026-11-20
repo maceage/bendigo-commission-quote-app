@@ -126,13 +126,18 @@ describe("useQuote", () => {
     await expect(pending).resolves.toBeUndefined();
   });
 
-  it("rethrows an unexpected error rather than swallowing it", async () => {
+  it("shows an error, not an endless loading state, when requestQuote throws unexpectedly", async () => {
     // requestQuote turns every expected failure into a result, and throws
     // only when its caller aborts, so a throw here would be a bug.
-    const bug = new TypeError("Cannot read properties of undefined");
-    requestQuoteMock.mockRejectedValueOnce(bug);
+    requestQuoteMock.mockRejectedValueOnce(new TypeError("Cannot read properties of undefined"));
     const { result } = renderHook(() => useQuote());
 
-    await expect(act(() => result.current.generate(REQUEST))).rejects.toBe(bug);
+    // Resolves rather than rejecting: the form calls generate without a catch.
+    await act(() => result.current.generate(REQUEST));
+
+    expect(result.current.state).toEqual({
+      status: "error",
+      error: { code: "INTERNAL_ERROR", message: "Something went wrong. Please try again." },
+    });
   });
 });
