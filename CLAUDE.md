@@ -30,7 +30,9 @@ npm test -w packages/quote-service -- src/__tests__/vendor-client.test.ts
 npm test -w packages/web -- -t "newest request wins"
 ```
 
-CI (`.github/workflows/ci-checks.yml`) runs format:check, lint, typecheck, test and build on Node 22 and 24, so code must pass Prettier. A `DockerSmokeTest` job builds the images with Compose and requests a quote through nginx; Docker isn't installed on the dev machine, so CI is the only place the Docker setup is exercised.
+CI (`.github/workflows/ci-checks.yml`) runs format:check, lint, typecheck, test and build on Node 22 and 24, so code must pass Prettier. A `DockerSmokeTest` job builds the images with Compose and requests a quote through nginx.
+
+Docker Desktop is installed on the dev machine, so test Docker, nginx or Compose changes locally before pushing: `docker compose up --build --detach --wait`, then `curl` http://localhost:8080 (the page, and `POST /api/quotes`), and `docker compose down` when done. To exercise an error path, recreate just the vendor with a setting forced on, e.g. `VENDOR_TIMEOUT_RATE=1 docker compose up -d --wait vendor-api` (expect a 504 after about 8s), then run it again without the variable to restore the defaults. Recreating a container discards its logs, so read `docker compose logs` before recreating it. A shell started before Docker was installed may not have `docker` on its PATH (it lives in `C:\Users\Mace\AppData\Local\Programs\DockerDesktop\resources\bin`).
 
 Docker: `docker/backend.Dockerfile` builds either backend (`PACKAGE` build arg) into an image holding only Node and the esbuild bundle (the bundle is self-contained, so no `node_modules`). `docker/web.Dockerfile` serves the Vite build with nginx (`docker/nginx.conf`), which proxies `/api` to quote-service; only nginx publishes a port. All images build from the repo root because the workspaces share one lockfile, so a new workspace package needs its `package.json` copied in both Dockerfiles before `npm ci`. Compose passes unset optional settings as empty strings, so the backends treat an empty env var as unset.
 
