@@ -94,6 +94,39 @@ describe("POST /quotes", () => {
     expect(second.quoteId).toBe(first.quoteId);
   });
 
+  it("returns the original quote for a replay that writes the same amount differently", async () => {
+    harness = await startApp(reliable());
+    const headers = { "idempotency-key": "same-loan" };
+    const first = (await (await post(quotePayload({ loanAmount: "250000" }), headers)).json()) as QuoteResponse;
+    const second = (await (await post(quotePayload({ loanAmount: "250000.00" }), headers)).json()) as QuoteResponse;
+    expect(second.quoteId).toBe(first.quoteId);
+  });
+
+  it("refuses with 422 an Idempotency-Key reused for a different loan, and keeps the original", async () => {
+    const { logger, lines } = captureLogs();
+    harness = await startApp(
+      createApp({ apiKey: VALID_KEY, failureRate: 0, timeoutRate: 0, latencyMs: [0, 0], logger }),
+    );
+    const headers = { "idempotency-key": "one-loan" };
+    const original = (await (await post(quotePayload(), headers)).json()) as QuoteResponse;
+
+    const reused = await post(quotePayload({ riskBand: "HIGH" }), headers);
+    expect(reused.status).toBe(422);
+    expect(await reused.json()).toEqual({ error: "Idempotency-Key was already used for a different request." });
+    const logged = lines.map((line) => JSON.parse(line) as { msg?: string });
+    expect(logged).toContainEqual(expect.objectContaining({ msg: "idempotency key reused for a different request" }));
+
+    const replay = (await (await post(quotePayload(), headers)).json()) as QuoteResponse;
+    expect(replay.quoteId).toBe(original.quoteId);
+  });
+
+  it("rejects an invalid body even when its Idempotency-Key was used before", async () => {
+    harness = await startApp(reliable());
+    const headers = { "idempotency-key": "then-invalid" };
+    await post(quotePayload(), headers);
+    expect((await post(quotePayload({ loanAmount: "-1" }), headers)).status).toBe(400);
+  });
+
   it("issues distinct quotes for distinct (or absent) Idempotency-Keys", async () => {
     harness = await startApp(reliable());
     const a = (await (await post(quotePayload(), { "idempotency-key": "a" })).json()) as QuoteResponse;

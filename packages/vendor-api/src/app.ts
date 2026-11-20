@@ -5,9 +5,10 @@
 import express, { type Request, type Response, type NextFunction } from "express";
 import { pinoHttp } from "pino-http";
 import { ZodError } from "zod";
+import { QuoteRequestSchema } from "@commission-quote/contract";
 import { createLogger, logLevelFor, requestId, type Logger } from "./logger";
 import { apiKeyAuth } from "./middleware/api-key-auth";
-import { IdempotencyStore } from "./services/idempotency-store";
+import { IdempotencyStore, fingerprint } from "./services/idempotency-store";
 import { generateQuote } from "./services/quote-engine";
 
 export interface VendorApiOptions {
@@ -73,9 +74,21 @@ export function createApp(options: VendorApiOptions) {
   app.post("/quotes", (req: Request, res: Response, next: NextFunction) => {
     simulateLatency(cfg.latencyMs, () => {
       try {
+        // Validated first, so a replay is matched on what it asks for.
+        const request = QuoteRequestSchema.parse(req.body);
+        const requestFingerprint = fingerprint(request);
         const key = req.header("idempotency-key");
-        let quote = key === undefined ? undefined : issued.get(key);
+        const previous = key === undefined ? undefined : issued.get(key);
 
+        // A key names one request: reusing it for a different loan is the
+        // caller's bug, and answering with the first loan's quote would hide it.
+        if (previous !== undefined && previous.fingerprint !== requestFingerprint) {
+          req.log.warn("idempotency key reused for a different request");
+          res.status(422).json({ error: "Idempotency-Key was already used for a different request." });
+          return;
+        }
+
+        let quote = previous?.quote;
         if (quote === undefined) {
           if (cfg.random() < cfg.failureRate) {
             req.log.warn("simulated failure");
@@ -83,8 +96,8 @@ export function createApp(options: VendorApiOptions) {
             return;
           }
 
-          quote = generateQuote(req.body);
-          if (key !== undefined) issued.set(key, quote);
+          quote = generateQuote(request);
+          if (key !== undefined) issued.set(key, { fingerprint: requestFingerprint, quote });
         }
 
         // The quote exists, but the caller never hears back: like a

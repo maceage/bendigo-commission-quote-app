@@ -5,10 +5,12 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { QuoteResponse } from "@commission-quote/contract";
-import { IdempotencyStore } from "../../src/services/idempotency-store";
+import { IdempotencyStore, fingerprint, type IssuedQuote } from "../../src/services/idempotency-store";
 
-const quote = (quoteId: string): QuoteResponse => ({ quoteId, commissionRate: 0.035, totalCommission: "8750.00" });
+const quote = (quoteId: string): IssuedQuote => ({
+  fingerprint: `request-for-${quoteId}`,
+  quote: { quoteId, commissionRate: 0.035, totalCommission: "8750.00" },
+});
 
 let dir: string;
 let file: string;
@@ -85,7 +87,8 @@ describe("IdempotencyStore", () => {
   it.each([
     ["not JSON", "{"],
     ["not a list", "{}"],
-    ["a quote that breaks the contract", JSON.stringify([["a", { quoteId: "Q-a", totalCommission: 8750 }]])],
+    ["a quote that breaks the contract", JSON.stringify([["a", { fingerprint: "f", quote: { quoteId: "Q-a" } }]])],
+    ["a quote without its request's fingerprint", JSON.stringify([["a", quote("Q-a").quote]])],
   ])("refuses to start from a file that is %s", (_what, contents) => {
     writeFileSync(file, contents);
     expect(() => new IdempotencyStore(2, file)).toThrow(
@@ -96,5 +99,25 @@ describe("IdempotencyStore", () => {
   it("passes on errors other than a missing file", () => {
     // A directory where the file should be: reading it fails, but not with ENOENT.
     expect(() => new IdempotencyStore(2, dir)).toThrow(expect.objectContaining({ code: "EISDIR" }));
+  });
+});
+
+describe("fingerprint", () => {
+  const loan = { loanAmount: "250000", loanTermInMonths: 36, riskBand: "MEDIUM" } as const;
+
+  it("is the same for the same loan, however the amount is written", () => {
+    expect(fingerprint({ ...loan, loanAmount: "250000.00" })).toBe(fingerprint(loan));
+    expect(fingerprint({ ...loan, loanAmount: "250000.0" })).toBe(fingerprint(loan));
+  });
+
+  it.each([{ loanAmount: "250000.01" }, { loanTermInMonths: 37 }, { riskBand: "HIGH" as const }])(
+    "differs when the loan does ($0)",
+    (change) => {
+      expect(fingerprint({ ...loan, ...change })).not.toBe(fingerprint(loan));
+    },
+  );
+
+  it("holds no loan details", () => {
+    expect(fingerprint(loan)).toMatch(/^[0-9a-f]{64}$/);
   });
 });
