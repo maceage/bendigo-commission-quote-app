@@ -1,10 +1,11 @@
-// Contract shape, validation, and the simulated failure behaviour.
+// Contract shape, validation, the simulated failure behaviour, and the
+// error responses and health check.
 // failureRate 0/1 makes the "random" simulation deterministic.
 
 import { describe, it, expect, afterEach } from "vitest";
 import { API_KEY_HEADER, QuoteResponseSchema, type QuoteResponse } from "@commission-quote/contract";
 import { createApp } from "../src/app";
-import { startApp, VALID_KEY, QUOTE_ENDPOINT, quotePayload } from "./test-server";
+import { startApp, captureLogs, VALID_KEY, QUOTE_ENDPOINT, quotePayload } from "./test-server";
 
 let harness: Awaited<ReturnType<typeof startApp>> | undefined;
 
@@ -96,5 +97,50 @@ describe("POST /quotes", () => {
     const b = (await (await post(quotePayload(), { "idempotency-key": "b" })).json()) as QuoteResponse;
     const c = (await (await post(quotePayload())).json()) as QuoteResponse;
     expect(new Set([a.quoteId, b.quoteId, c.quoteId]).size).toBe(3);
+  });
+});
+
+describe("error responses and health check", () => {
+  it("returns 413 for a body over the 10kb limit", async () => {
+    harness = await startApp(reliable());
+    const res = await post(quotePayload({ padding: "x".repeat(11_000) }));
+    expect(res.status).toBe(413);
+    expect(await res.json()).toEqual({ error: "Request payload too large." });
+  });
+
+  it("returns an opaque 500 for an unexpected error, and logs the details", async () => {
+    const { logger, lines } = captureLogs();
+    // A roll that throws stands in for any unexpected bug in the handler.
+    const random = () => {
+      throw new Error("secret internal details");
+    };
+    harness = await startApp(createApp({ apiKey: VALID_KEY, latencyMs: [0, 0], random, logger }));
+
+    const res = await post(quotePayload());
+    expect(res.status).toBe(500);
+    const body = await res.text();
+    expect(JSON.parse(body)).toEqual({ error: "Internal vendor error." });
+    expect(body).not.toContain("secret internal details");
+
+    const logged = lines.map((line) => JSON.parse(line) as { msg?: string; err?: { message?: string } });
+    expect(logged).toContainEqual(
+      expect.objectContaining({
+        msg: "unexpected failure",
+        err: expect.objectContaining({ message: "secret internal details" }),
+      }),
+    );
+  });
+
+  it("answers /healthz without an API key (Compose's health check has none), and doesn't log it", async () => {
+    const { logger, lines } = captureLogs();
+    harness = await startApp(createApp({ apiKey: VALID_KEY, logger }));
+
+    const res = await fetch(`${harness.url}/healthz`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: "ok" });
+
+    await fetch(`${harness.url}${QUOTE_ENDPOINT}`, { method: "POST" }); // logged, to prove logging works
+    expect(lines.join("")).toContain(QUOTE_ENDPOINT);
+    expect(lines.join("")).not.toContain("/healthz");
   });
 });
