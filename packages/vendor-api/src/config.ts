@@ -12,6 +12,8 @@ export interface VendorConfig {
   /** Absent when unset, so the app's default applies (an explicit undefined would override it). */
   failureRate?: number;
   timeoutRate?: number;
+  /** Where issued quotes are kept across restarts; absent means in memory only. */
+  idempotencyFile?: string;
 }
 
 /** An optional 0-1 probability. Empty counts as unset, since Compose passes unset settings as "". */
@@ -33,11 +35,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): VendorConfig {
   // quote-service retries, so at the default rates users rarely see a failure.
   const failureRate = rateFromEnv(env, "VENDOR_FAILURE_RATE");
   const timeoutRate = rateFromEnv(env, "VENDOR_TIMEOUT_RATE");
+  const idempotencyFile = env.VENDOR_IDEMPOTENCY_FILE || undefined;
 
   return {
     port: Number(env.PORT || 4001),
     apiKey,
     ...(failureRate !== undefined && { failureRate }),
     ...(timeoutRate !== undefined && { timeoutRate }),
+    ...(idempotencyFile !== undefined && { idempotencyFile }),
   };
 }

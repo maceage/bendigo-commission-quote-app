@@ -14,7 +14,11 @@ services:
       VENDOR_API_KEY: ${VENDOR_API_KEY:?set VENDOR_API_KEY (see .env.example)}
       VENDOR_FAILURE_RATE: ${VENDOR_FAILURE_RATE:-}
       VENDOR_TIMEOUT_RATE: ${VENDOR_TIMEOUT_RATE:-}
+      # Issued quotes survive a restart, as a real vendor's would.
+      VENDOR_IDEMPOTENCY_FILE: /app/data/idempotency.json
       LOG_LEVEL: ${LOG_LEVEL:-}
+    volumes:
+      - vendor-data:/app/data
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4001/healthz"]
       interval: 5s
@@ -49,3 +53,6 @@ services:
     depends_on:
       quote-service:
         condition: service_healthy
+
+volumes:
+  vendor-data:

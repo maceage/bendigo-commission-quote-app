@@ -5,9 +5,9 @@
 import express, { type Request, type Response, type NextFunction } from "express";
 import { pinoHttp } from "pino-http";
 import { ZodError } from "zod";
-import type { QuoteResponse } from "@commission-quote/contract";
 import { createLogger, logLevelFor, requestId, type Logger } from "./logger";
 import { apiKeyAuth } from "./middleware/api-key-auth";
+import { IdempotencyStore } from "./services/idempotency-store";
 import { generateQuote } from "./services/quote-engine";
 
 export interface VendorApiOptions {
@@ -26,6 +26,8 @@ export interface VendorApiOptions {
   random?: () => number;
   /** How many idempotency keys the mock remembers (oldest evicted first). */
   idempotencyCacheSize?: number;
+  /** File that keeps issued quotes across restarts; in memory only if absent. */
+  idempotencyFile?: string;
   logger?: Logger;
 }
 
@@ -54,10 +56,8 @@ export function createApp(options: VendorApiOptions) {
     }),
   );
 
-  // Quotes already issued, by Idempotency-Key: a retried request gets
-  // the original quote back instead of a new one. Map preserves
-  // insertion order, which gives us cheap FIFO eviction.
-  const issued = new Map<string, QuoteResponse>();
+  // Quotes already issued, by Idempotency-Key.
+  const issued = new IdempotencyStore(cfg.idempotencyCacheSize, cfg.idempotencyFile);
 
   app.get("/healthz", (_req, res) => {
     res.json({ status: "ok" });
@@ -84,12 +84,7 @@ export function createApp(options: VendorApiOptions) {
           }
 
           quote = generateQuote(req.body);
-          if (key !== undefined) {
-            issued.set(key, quote);
-            if (issued.size > cfg.idempotencyCacheSize) {
-              issued.delete(issued.keys().next().value!);
-            }
-          }
+          if (key !== undefined) issued.set(key, quote);
         }
 
         // The quote exists, but the caller never hears back: like a

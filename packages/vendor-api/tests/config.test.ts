@@ -21,8 +21,16 @@ describe("loadConfig", () => {
   });
 
   it("treats empty settings as unset, as Compose passes them", () => {
-    const env = { ...KEY, PORT: "", VENDOR_FAILURE_RATE: "", VENDOR_TIMEOUT_RATE: "" };
+    const env = { ...KEY, PORT: "", VENDOR_FAILURE_RATE: "", VENDOR_TIMEOUT_RATE: "", VENDOR_IDEMPOTENCY_FILE: "" };
     expect(loadConfig(env)).toEqual({ port: 4001, apiKey: "a-key" });
+  });
+
+  it("reads the idempotency file's path", () => {
+    expect(loadConfig({ ...KEY, VENDOR_IDEMPOTENCY_FILE: "/data/issued.json" })).toEqual({
+      port: 4001,
+      apiKey: "a-key",
+      idempotencyFile: "/data/issued.json",
+    });
   });
 
   it("accepts the boundary rates 0 and 1 (0 is a real setting, not unset)", () => {

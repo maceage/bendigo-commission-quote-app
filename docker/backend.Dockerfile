@@ -24,6 +24,9 @@ ENV NODE_ENV=production
 WORKDIR /app
 ARG PACKAGE
 COPY --from=build /app/packages/${PACKAGE}/dist/ ./
+# Somewhere the unprivileged user can write: vendor-api keeps its
+# idempotency file here, on a Compose volume (unused by quote-service).
+RUN mkdir data && chown node:node data
 # The image's built-in unprivileged user.
 USER node
 CMD ["node", "--enable-source-maps", "server.cjs"]

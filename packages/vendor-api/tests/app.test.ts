@@ -3,6 +3,9 @@
 // failureRate 0/1 makes the "random" simulation deterministic.
 
 import { describe, it, expect, afterEach } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { API_KEY_HEADER, QuoteResponseSchema, type QuoteResponse } from "@commission-quote/contract";
 import { createApp } from "../src/app";
 import { startApp, captureLogs, VALID_KEY, QUOTE_ENDPOINT, quotePayload } from "./test-server";
@@ -175,5 +178,27 @@ describe("idempotency store", () => {
     await quoteFor("c");
 
     expect(await quoteFor("a")).not.toBe(a);
+  });
+
+  it("returns the original quote after a restart when given a file", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "vendor-"));
+    const withFile = () =>
+      createApp({
+        apiKey: VALID_KEY,
+        failureRate: 0,
+        timeoutRate: 0,
+        latencyMs: [0, 0],
+        idempotencyFile: join(dir, "issued.json"),
+      });
+    try {
+      harness = await startApp(withFile());
+      const original = await quoteFor("before-restart");
+      await harness.close();
+
+      harness = await startApp(withFile());
+      expect(await quoteFor("before-restart")).toBe(original);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

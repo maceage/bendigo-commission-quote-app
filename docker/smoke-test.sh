@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Starts the whole app with Docker Compose, checks it through nginx, and
-# shuts it down (printing the container logs first if a check failed).
+# shuts it down, removing its volumes (printing the container logs first
+# if a check failed).
 # CI's DockerSmokeTest job runs this; locally: bash docker/smoke-test.sh
 # Needs VENDOR_API_KEY in the shell or the repo-root .env.
 
@@ -17,7 +18,7 @@ export VENDOR_FAILURE_RATE=0 VENDOR_TIMEOUT_RATE=0
 finish() {
   local status=$?
   if [ "$status" -ne 0 ]; then docker compose logs || true; fi
-  docker compose down >/dev/null 2>&1 || true
+  docker compose down --volumes >/dev/null 2>&1 || true
   rm -rf "$WORK"
   exit "$status"
 }
@@ -38,6 +39,14 @@ request() {
   curl "${args[@]}" "$BASE$path"
 }
 header() { tr -d '\r' <"$WORK/headers" | grep -i "^$1:" | cut -d' ' -f2-; }
+
+# POSTs a quote straight to vendor-api from inside its container (it isn't
+# published), with a fixed Idempotency-Key; prints the quote's ID.
+vendor_quote_id() {
+  docker compose exec -T vendor-api sh -c 'wget -qO- --header "content-type: application/json" \
+    --header "api-key: $VENDOR_API_KEY" --header "idempotency-key: smoke-restart" \
+    --post-data "$1" http://127.0.0.1:4001/quotes' sh "$QUOTE" | grep -o '"quoteId":"[^"]*"'
+}
 
 docker compose up --build --detach --wait
 
@@ -78,6 +87,13 @@ for port in 4000 4001; do
   if curl -s -m 2 -o /dev/null "http://localhost:$port/healthz"; then fail "backend port $port is reachable from the host"; fi
 done
 pass "backends not reachable from the host"
+
+# --- vendor keeps issued quotes on its volume across a new container ---
+before=$(vendor_quote_id) || fail "vendor didn't issue a quote"
+docker compose up --detach --wait --force-recreate vendor-api
+after=$(vendor_quote_id) || fail "vendor didn't answer after being recreated"
+[ "$after" = "$before" ] || fail "replayed key got $after after a restart, not $before"
+pass "vendor returns the original quote for a key after a restart"
 
 # --- vendor never responds: nginx must wait out quote-service's 8s deadline ---
 VENDOR_TIMEOUT_RATE=1 docker compose up --detach --wait vendor-api
