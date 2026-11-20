@@ -3,8 +3,10 @@
 // in-process with no port juggling.
 
 import express, { type Request, type Response, type NextFunction } from "express";
+import { pinoHttp } from "pino-http";
 import { ZodError } from "zod";
 import type { QuoteResponse } from "@commission-quote/contract";
+import { createLogger, logLevelFor, requestId, type Logger } from "./logger";
 import { apiKeyAuth } from "./middleware/api-key-auth";
 import { generateQuote } from "./services/quote-engine";
 
@@ -16,6 +18,7 @@ export interface VendorApiOptions {
   timeoutRate?: number;
   /** Simulated latency range in ms: [min, max]. */
   latencyMs?: [number, number];
+  logger?: Logger;
 }
 
 const DEFAULTS = {
@@ -34,6 +37,15 @@ export function createApp(options: VendorApiOptions) {
   const cfg = { ...DEFAULTS, ...options };
   const app = express();
   app.disable("x-powered-by");
+  app.use(
+    pinoHttp({
+      logger: options.logger ?? createLogger(),
+      genReqId: requestId,
+      customLogLevel: logLevelFor,
+      quietReqLogger: true,
+      autoLogging: { ignore: (req) => req.url === "/healthz" },
+    }),
+  );
 
   // Quotes already issued, by Idempotency-Key: a retried request gets
   // the original quote back instead of a new one. Map preserves
@@ -59,6 +71,7 @@ export function createApp(options: VendorApiOptions) {
 
         if (quote === undefined) {
           if (Math.random() < cfg.failureRate) {
+            req.log.warn("simulated failure");
             res.status(500).json({ error: "Internal vendor error." });
             return;
           }
@@ -76,7 +89,10 @@ export function createApp(options: VendorApiOptions) {
         // response lost in transit. The connection stays open until the
         // caller gives up, and a retry with the same Idempotency-Key gets
         // this quote rather than a duplicate.
-        if (Math.random() < cfg.timeoutRate) return;
+        if (Math.random() < cfg.timeoutRate) {
+          req.log.warn({ quoteId: quote.quoteId }, "simulated timeout: not responding");
+          return;
+        }
 
         res.status(200).json(quote);
       } catch (err) {
@@ -88,7 +104,7 @@ export function createApp(options: VendorApiOptions) {
   });
 
   // Uniform, opaque error envelope — nothing about our stack leaks.
-  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
     const status = (err as { status?: unknown } | null)?.status;
     if (err instanceof ZodError || (err instanceof SyntaxError && status === 400)) {
       res.status(400).json({ error: "Invalid request payload." });
@@ -98,7 +114,7 @@ export function createApp(options: VendorApiOptions) {
       res.status(413).json({ error: "Request payload too large." });
       return;
     }
-    console.error("[vendor-api]", err);
+    req.log.error({ err }, "unexpected failure");
     res.status(500).json({ error: "Internal vendor error." });
   });
 

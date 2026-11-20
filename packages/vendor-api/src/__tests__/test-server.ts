@@ -2,6 +2,14 @@
 // duration of a test, exposes a base URL, cleans up after.
 
 import type { Express } from "express";
+import { createLogger, type Logger } from "../logger";
+
+/** The app's real logger config (incl. redaction), recording each raw line for assertions. */
+export function captureLogs(): { logger: Logger; lines: string[] } {
+  const lines: string[] = [];
+  const logger = createLogger({ level: "debug", destination: { write: (line: string) => lines.push(line) } });
+  return { logger, lines };
+}
 
 export async function startApp(app: Express): Promise<{ url: string; close: () => Promise<void> }> {
   const server = app.listen(0);

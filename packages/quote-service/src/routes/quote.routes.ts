@@ -2,13 +2,10 @@
 // No business logic lives here on purpose.
 
 import { Router, type Request, type Response } from "express";
-import { QUOTE_ERROR_STATUS, QuoteRequestSchema, type QuoteError } from "@commission-quote/contract";
+import { QuoteRequestSchema } from "@commission-quote/contract";
 import type { QuoteProvider } from "../services/quote-provider";
 import { VendorClientError } from "../services/vendor-client";
-
-function sendError(res: Response, error: QuoteError): void {
-  res.status(QUOTE_ERROR_STATUS[error.code]).json(error);
-}
+import { sendError } from "../send-error";
 
 export function quoteRoutes(quoteService: QuoteProvider): Router {
   const router = Router();
@@ -19,7 +16,7 @@ export function quoteRoutes(quoteService: QuoteProvider): Router {
     const parsed = QuoteRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       // The contract's messages are written to be shown to users.
-      sendError(res, {
+      sendError(req, res, {
         code: "VALIDATION_ERROR",
         message: parsed.error.issues[0]?.message ?? "Invalid loan details.",
       });
@@ -27,11 +24,11 @@ export function quoteRoutes(quoteService: QuoteProvider): Router {
     }
 
     try {
-      const quote = await quoteService.generateQuote(parsed.data);
+      const quote = await quoteService.generateQuote(parsed.data, { requestId: String(req.id), log: req.log });
       res.status(200).json(quote);
     } catch (err) {
       if (err instanceof VendorClientError) {
-        sendError(res, { code: err.code, message: err.message });
+        sendError(req, res, { code: err.code, message: err.message });
         return;
       }
       // Anything else is OUR bug. Express 5 passes the rejection to the

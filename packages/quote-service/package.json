@@ -13,6 +13,8 @@
   "dependencies": {
     "@commission-quote/contract": "1.0.0",
     "express": "^5.3.0",
+    "pino": "^10.4.0",
+    "pino-http": "^11.0.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {

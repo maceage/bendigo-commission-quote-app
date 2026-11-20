@@ -4,8 +4,9 @@
 
 import { describe, it, expect, afterEach } from "vitest";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { API_KEY_HEADER } from "@commission-quote/contract";
+import { API_KEY_HEADER, REQUEST_ID_HEADER } from "@commission-quote/contract";
 import { VendorClientError, VendorQuoteClient, type VendorClientConfig } from "../services/vendor-client";
+import { captureLogs } from "./test-server";
 
 const KEY = "test-vendor-key-123";
 const REQUEST = { loanAmount: 250_000, loanTermInMonths: 36, riskBand: "MEDIUM" as const };
@@ -119,6 +120,23 @@ describe("VendorQuoteClient", () => {
     expect(keys).toHaveLength(3);
     expect(new Set(keys).size).toBe(1);
     expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("forwards the request ID to the vendor on every attempt", async () => {
+    const { url, requests } = await startVendor(statuses([500, 200]));
+    const { logger } = captureLogs();
+    await makeClient(url).generateQuote(REQUEST, { requestId: "req-42", log: logger });
+    expect(requests.map((r) => r.headers[REQUEST_ID_HEADER])).toEqual(["req-42", "req-42"]);
+  });
+
+  it("logs each attempt: the failure with its status, the retry, then the success", async () => {
+    const { url } = await startVendor(statuses([503, 200]));
+    const { logger, lines } = captureLogs();
+    await makeClient(url).generateQuote(REQUEST, { requestId: "req-42", log: logger });
+
+    expect(lines.map((l) => l.msg)).toEqual(["vendor attempt failed", "retrying vendor call", "vendor quote received"]);
+    expect(lines[0]).toMatchObject({ attempt: 1, code: "SERVICE_UNAVAILABLE", status: 503 });
+    expect(lines[2]).toMatchObject({ attempt: 2, quoteId: "22222222-2222-4222-8222-222222222222" });
   });
 
   it("uses a fresh idempotency key for each new request", async () => {

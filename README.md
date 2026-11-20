@@ -74,6 +74,12 @@ The vendor also never responds to about 1 in 20 calls, though it still issues th
 
 All services fail fast at startup if `VENDOR_API_KEY` is missing: the process exits with a clear message rather than starting insecure. Both backends expose `GET /healthz`.
 
+### Logs and request IDs
+
+Both backends write structured JSON logs (pino) to stdout: one line per request with its status and duration, plus a line for every vendor attempt (attempt number, the vendor's status, duration, error code) and every retry. Set `LOG_LEVEL` (e.g. `debug`, `warn`) to change the detail; the default is `info`. The `api-key` header is redacted, so the key never reaches the logs.
+
+Every request gets an ID, returned in the `x-request-id` response header. quote-service forwards it to the vendor, so both services log the request under the same ID. Error responses include it as `requestId`, and the UI shows it as a "Reference" under the error message, so a staff member can quote it and support can find exactly what happened.
+
 ### Production build
 
 ```bash
@@ -110,13 +116,14 @@ npm test -w packages/web
 
 ### What is tested, and why
 
-- **vendor-api / auth** - the security requirement: requests without a valid `api-key` header (the name the contract specifies, defined once as `API_KEY_HEADER` in the contract package) are rejected 401; wrong key is indistinguishable from missing key, and a key under any other header name is ignored.
+- **vendor-api / auth** - the security requirement: requests without a valid `api-key` header (the name the contract specifies, defined once as `API_KEY_HEADER` in the contract package) are rejected 401; wrong key is indistinguishable from missing key, and a key under any other header name is ignored. The key is also checked never to appear in the logs.
 - **vendor-api / quote** - responses validate against the shared `QuoteResponseSchema`; invalid payloads (negative amount, bad risk band, string-typed number, malformed JSON) return 400; a repeated `Idempotency-Key` returns the original quote; the simulation knobs (`failureRate: 1`, `timeoutRate: 1`) prove the random-error and never-responds behaviour deterministically.
-- **quote-service / routes** - with a stubbed `QuoteProvider` (no sockets): validation happens _before_ the vendor is called; typed vendor failures map to 504/503/502; internal error details never leak to the client while still being logged server-side; an error that merely _looks_ typed (e.g. a `DOMException` with a numeric `code`) still gets a clean 500 instead of crashing the handler; malformed JSON returns 400 and oversized bodies 413.
-- **quote-service / vendor-client** - against a real throwaway HTTP server: success, retry-then-succeed on a transient 500, exhaustion → `SERVICE_UNAVAILABLE`, 429 with `Retry-After`, hung vendor → `VENDOR_TIMEOUT`, a vendor that stalls mid-body → `VENDOR_TIMEOUT`, the overall deadline, the same idempotency key across retries, unreachable vendor, and non-retryable failures (401, malformed or non-JSON 200) failing fast.
-- **quote-service / end-to-end** - quote-service's app, `QuoteService` and `VendorQuoteClient` against the real mock vendor over HTTP: a successful quote, a rejected key → 502, persistent failures → 503, and a vendor that never responds → 504. The only suite where both sides are real, so it catches them drifting apart (e.g. on the API key header name).
+- **quote-service / routes** - with a stubbed `QuoteProvider` (no sockets): validation happens _before_ the vendor is called; typed vendor failures map to 504/503/502; internal error details never leak to the client while still being logged server-side under the request ID the client was given; every response gets a request ID (a well-formed incoming one is reused, anything else replaced); an error that merely _looks_ typed (e.g. a `DOMException` with a numeric `code`) still gets a clean 500 instead of crashing the handler; malformed JSON returns 400 and oversized bodies 413.
+- **quote-service / vendor-client** - against a real throwaway HTTP server: success, retry-then-succeed on a transient 500, exhaustion → `SERVICE_UNAVAILABLE`, 429 with `Retry-After`, hung vendor → `VENDOR_TIMEOUT`, a vendor that stalls mid-body → `VENDOR_TIMEOUT`, the overall deadline, the same idempotency key across retries, the request ID forwarded on every attempt, each attempt and retry logged, unreachable vendor, and non-retryable failures (401, malformed or non-JSON 200) failing fast.
+- **quote-service / end-to-end** - quote-service's app, `QuoteService` and `VendorQuoteClient` against the real mock vendor over HTTP: a successful quote, a rejected key → 502, persistent failures → 503, a vendor that never responds → 504, and both services logging the request under one request ID. The only suite where both sides are real, so it catches them drifting apart (e.g. on the API key header name).
 - **web / quoteApi** - with a stubbed `fetch`: success, backend envelopes passed through, unknown error codes and non-JSON error bodies normalised, invalid 200 bodies rejected, network failure, client-side timeout, caller cancellation.
 - **web / useQuote** - state transitions, and that the _newest_ request wins when responses arrive out of order (superseded requests are aborted, as is the in-flight one on unmount).
+- **web / Alert** - shows the request ID as a reference when the error has one, and nothing when it doesn't (e.g. a network failure).
 - **web / QuoteForm** - numbers (not strings) are submitted; blank, over-limit and fractional inputs show the shared schema's messages per field; errors clear on edit; everything is disabled while loading.
 
 Randomness is made deterministic via injected config (`failureRate` and `timeoutRate` of 0 or 1, fixed latency, fast backoff) rather than sleeps or flaky probabilistic assertions.
@@ -150,7 +157,7 @@ Every design decision - the contract-package approach, API-key custody in the ba
 - **`QuoteService` is currently a pass-through** - wired in, and deliberately kept as a seam for caching, rate limiting, or auditing when the app grows.
 - **The mock's idempotency store is in memory** (last 1,000 keys) - fine for a mock; a real vendor would persist it.
 - **Money as floats**: totals are rounded to cents, but a real lending platform should use integer cents or a decimal type end-to-end.
-- **Observability**: structured logging and request IDs instead of `console.*`.
+- **Logs only, no metrics or tracing**: request IDs link the two services' logs, but there are no metrics (e.g. vendor error rate, latency) or distributed tracing such as OpenTelemetry.
 
 ## Assumptions
 

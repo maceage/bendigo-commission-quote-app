@@ -4,6 +4,7 @@
 // auditing) have a starting point to modify.
 
 import { describe, it, expect, vi } from "vitest";
+import { pino } from "pino";
 import type { QuoteRequest, QuoteResponse } from "@commission-quote/contract";
 import { QuoteService } from "../services/quote.service";
 import { VendorClientError } from "../services/vendor-client";
@@ -21,14 +22,15 @@ const QUOTE: QuoteResponse = {
 };
 
 describe("QuoteService", () => {
-  it("delegates to the vendor client and returns its quote", async () => {
+  it("delegates to the vendor client, passing the request context through", async () => {
     const vendorClient = { generateQuote: vi.fn().mockResolvedValue(QUOTE) };
     const service = new QuoteService(vendorClient);
+    const context = { requestId: "req-1", log: pino({ level: "silent" }) };
 
-    const result = await service.generateQuote(REQUEST);
+    const result = await service.generateQuote(REQUEST, context);
 
     expect(result).toEqual(QUOTE);
-    expect(vendorClient.generateQuote).toHaveBeenCalledWith(REQUEST);
+    expect(vendorClient.generateQuote).toHaveBeenCalledWith(REQUEST, context);
   });
 
   it("propagates vendor failures unchanged — no swallowing here", async () => {

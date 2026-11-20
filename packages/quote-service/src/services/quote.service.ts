@@ -5,13 +5,13 @@
 // requests, auditing) belongs here as the app grows.
 
 import type { QuoteRequest, QuoteResponse } from "@commission-quote/contract";
-import type { QuoteProvider } from "./quote-provider";
+import type { QuoteContext, QuoteProvider } from "./quote-provider";
 
 export class QuoteService implements QuoteProvider {
   constructor(private readonly vendorClient: QuoteProvider) {}
 
-  async generateQuote(request: QuoteRequest): Promise<QuoteResponse> {
+  async generateQuote(request: QuoteRequest, context?: QuoteContext): Promise<QuoteResponse> {
     // Input has already been validated at the route boundary.
-    return this.vendorClient.generateQuote(request);
+    return this.vendorClient.generateQuote(request, context);
   }
 }

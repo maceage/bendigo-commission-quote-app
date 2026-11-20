@@ -3,7 +3,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { API_KEY_HEADER } from "@commission-quote/contract";
 import { createApp } from "../app";
-import { startApp, VALID_KEY, QUOTE_ENDPOINT, quotePayload } from "./test-server";
+import { startApp, captureLogs, VALID_KEY, QUOTE_ENDPOINT, quotePayload } from "./test-server";
 
 let harness: Awaited<ReturnType<typeof startApp>> | undefined;
 
@@ -41,6 +41,22 @@ describe("api-key auth", () => {
     });
     // 401 = auth blocked us; anything else means auth waved us through.
     expect(res.status).not.toBe(401);
+  });
+
+  it("never writes the API key to the logs", async () => {
+    const { logger, lines } = captureLogs();
+    harness = await startApp(
+      createApp({ apiKey: VALID_KEY, failureRate: 0, timeoutRate: 0, latencyMs: [0, 0], logger }),
+    );
+    await fetch(`${harness.url}${QUOTE_ENDPOINT}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", [API_KEY_HEADER]: VALID_KEY },
+      body: quotePayload(),
+    });
+
+    const logged = lines.join("");
+    expect(logged).toContain('"api-key":"[Redacted]"'); // the request line was written...
+    expect(logged).not.toContain(VALID_KEY); // ...without the key
   });
 
   it("ignores a valid key sent under any other header name", async () => {

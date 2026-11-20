@@ -33,6 +33,12 @@
   font-size: 0.875rem;
   color: #555;
 }
+.alert-reference {
+  font-size: 0.75rem;
+  color: #555;
+  font-family: monospace;
+  overflow-wrap: anywhere;
+}
 .quote-result {
   border: 1px solid #ccc;
   padding: 1.5rem;

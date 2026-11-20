@@ -3,10 +3,10 @@
 // QuoteProvider interface exists for.
 
 import { describe, it, expect, afterEach, vi } from "vitest";
-import type { QuoteError, QuoteRequest, QuoteResponse } from "@commission-quote/contract";
+import { REQUEST_ID_HEADER, type QuoteError, type QuoteRequest, type QuoteResponse } from "@commission-quote/contract";
 import { createApp } from "../app";
 import { VendorClientError } from "../services/vendor-client";
-import { startApp, loanPayload } from "./test-server";
+import { startApp, loanPayload, captureLogs } from "./test-server";
 
 let harness: Awaited<ReturnType<typeof startApp>> | undefined;
 
@@ -26,10 +26,10 @@ function stubProvider(impl: (req: QuoteRequest) => Promise<QuoteResponse>) {
   return { generateQuote: vi.fn(impl) };
 }
 
-async function post(body: string) {
+async function post(body: string, headers: Record<string, string> = {}) {
   return fetch(`${harness!.url}/api/quotes`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...headers },
     body,
   });
 }
@@ -49,16 +49,40 @@ describe("POST /api/quotes", () => {
     expect(provider.generateQuote).toHaveBeenCalledOnce();
   });
 
+  it("gives every response a request ID, and puts it in error bodies", async () => {
+    harness = await startApp(createApp({ quoteService: stubProvider(async () => QUOTE) }));
+
+    const ok = await post(loanPayload());
+    expect(ok.headers.get(REQUEST_ID_HEADER)).toMatch(/^[0-9a-f-]{36}$/);
+
+    const bad = await post(loanPayload({ loanAmount: -1 }));
+    const id = bad.headers.get(REQUEST_ID_HEADER);
+    expect(id).not.toBe(ok.headers.get(REQUEST_ID_HEADER));
+    expect((await errorBody(bad)).requestId).toBe(id);
+  });
+
+  it("reuses a well-formed incoming request ID", async () => {
+    harness = await startApp(createApp({ quoteService: stubProvider(async () => QUOTE) }));
+    const res = await post(loanPayload(), { [REQUEST_ID_HEADER]: "upstream-abc_123" });
+    expect(res.headers.get(REQUEST_ID_HEADER)).toBe("upstream-abc_123");
+  });
+
+  it("replaces an incoming request ID that isn't a short plain token", async () => {
+    harness = await startApp(createApp({ quoteService: stubProvider(async () => QUOTE) }));
+    const res = await post(loanPayload(), { [REQUEST_ID_HEADER]: "<script>alert(1)</script>" });
+    expect(res.headers.get(REQUEST_ID_HEADER)).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
   it("passes the VALIDATED request to the provider, not raw body", async () => {
     const provider = stubProvider(async () => QUOTE);
     harness = await startApp(createApp({ quoteService: provider }));
 
-    await post(loanPayload({ extraField: "should be stripped" }));
-    expect(provider.generateQuote).toHaveBeenCalledWith({
-      loanAmount: 250000,
-      loanTermInMonths: 36,
-      riskBand: "MEDIUM",
-    });
+    const res = await post(loanPayload({ extraField: "should be stripped" }));
+    expect(provider.generateQuote).toHaveBeenCalledWith(
+      { loanAmount: 250000, loanTermInMonths: 36, riskBand: "MEDIUM" },
+      // The request's ID and logger travel with it, for the vendor call's logs.
+      { requestId: res.headers.get(REQUEST_ID_HEADER), log: expect.anything() },
+    );
   });
 
   it.each([
@@ -94,15 +118,17 @@ describe("POST /api/quotes", () => {
 
     const res = await post(loanPayload());
     expect(res.status).toBe(expectedStatus);
-    expect(await errorBody(res)).toEqual({ code, message: "vendor blew up" });
+    expect(await errorBody(res)).toEqual({
+      code,
+      message: "vendor blew up",
+      requestId: res.headers.get(REQUEST_ID_HEADER),
+    });
   });
 
   it("returns 500 INTERNAL_ERROR with a safe message when the provider throws something untyped", async () => {
-    // Silence the deliberate alarm for THIS test — and assert it fired.
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-
+    const { logger, lines } = captureLogs();
     const provider = stubProvider(() => Promise.reject(new Error("secret stack details")));
-    harness = await startApp(createApp({ quoteService: provider }));
+    harness = await startApp(createApp({ quoteService: provider, logger }));
 
     const res = await post(loanPayload());
     expect(res.status).toBe(500);
@@ -110,13 +136,19 @@ describe("POST /api/quotes", () => {
     const body = await errorBody(res);
     expect(body.code).toBe("INTERNAL_ERROR");
     expect(JSON.stringify(body)).not.toContain("secret stack details");
-    expect(errorSpy).toHaveBeenCalledWith("[quote-service] unexpected failure:", expect.any(Error));
+    // The details go to the log instead, under the ID the user was given.
+    expect(lines).toContainEqual(
+      expect.objectContaining({
+        msg: "unexpected failure",
+        reqId: body.requestId,
+        err: expect.objectContaining({ message: "secret stack details" }),
+      }),
+    );
   });
 
   it("survives an error that merely LOOKS typed (e.g. a DOMException with a numeric code)", async () => {
     // Regression: duck-typing on `"code" in err` once let this through
     // to res.status(undefined), which threw inside an async handler.
-    vi.spyOn(console, "error").mockImplementation(() => {});
     const lookalike = Object.assign(new Error("The operation timed out."), { code: 23 });
     const provider = stubProvider(() => Promise.reject(lookalike));
     harness = await startApp(createApp({ quoteService: provider }));

@@ -21,6 +21,8 @@ export function Alert({ error }: { error: QuoteError }) {
       <strong>{ERROR_HEADING[error.code]}</strong>
       <p>{error.message}</p>
       {TRANSIENT.has(error.code) && <p className="alert-hint">This is usually temporary — please try again.</p>}
+      {/* Matches the server logs, so support can find exactly what happened. */}
+      {error.requestId !== undefined && <p className="alert-reference">Reference: {error.requestId}</p>}
     </div>
   );
 }

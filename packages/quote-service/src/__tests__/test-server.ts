@@ -2,6 +2,17 @@
 // than a cross-package test-utils workspace at this scale).
 
 import type { Express } from "express";
+import { createLogger, type Logger } from "../logger";
+
+/** The app's real logger config, recording every line as parsed JSON for assertions. */
+export function captureLogs(): { logger: Logger; lines: Record<string, unknown>[] } {
+  const lines: Record<string, unknown>[] = [];
+  const logger = createLogger({
+    level: "debug",
+    destination: { write: (line: string) => lines.push(JSON.parse(line)) },
+  });
+  return { logger, lines };
+}
 
 export async function startApp(app: Express): Promise<{ url: string; close: () => Promise<void> }> {
   const server = app.listen(0);

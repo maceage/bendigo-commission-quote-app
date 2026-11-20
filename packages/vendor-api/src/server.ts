@@ -1,12 +1,15 @@
 // Thin launcher: reads env, creates the app, listens.
 
 import { createApp } from "./app";
+import { createLogger } from "./logger";
+
+const logger = createLogger();
 
 const PORT = Number(process.env.PORT ?? 4001);
 const API_KEY = process.env.VENDOR_API_KEY;
 
 if (!API_KEY) {
-  console.error("VENDOR_API_KEY must be set (see .env.example)");
+  logger.fatal("VENDOR_API_KEY must be set (see .env.example)");
   process.exit(1);
 }
 
@@ -16,7 +19,7 @@ function rateFromEnv(name: string): number | undefined {
   if (raw === undefined) return undefined;
   const rate = Number(raw);
   if (!(rate >= 0 && rate <= 1)) {
-    console.error(`${name} must be a number from 0 to 1 (got "${raw}")`);
+    logger.fatal(`${name} must be a number from 0 to 1 (got "${raw}")`);
     process.exit(1);
   }
   return rate;
@@ -31,8 +34,9 @@ const TIMEOUT_RATE = rateFromEnv("VENDOR_TIMEOUT_RATE");
 // app's defaults.
 createApp({
   apiKey: API_KEY,
+  logger,
   ...(FAILURE_RATE !== undefined && { failureRate: FAILURE_RATE }),
   ...(TIMEOUT_RATE !== undefined && { timeoutRate: TIMEOUT_RATE }),
 }).listen(PORT, () => {
-  console.log(`[vendor-api] mock Commission Quote API listening on :${PORT}`);
+  logger.info({ port: PORT }, "mock Commission Quote API listening");
 });

@@ -9,8 +9,15 @@
 //      the app (and the UI) can reason about
 
 import { randomUUID } from "node:crypto";
-import { API_KEY_HEADER, QuoteResponseSchema, type QuoteRequest, type QuoteResponse } from "@commission-quote/contract";
-import type { QuoteProvider } from "./quote-provider";
+import { pino } from "pino";
+import {
+  API_KEY_HEADER,
+  QuoteResponseSchema,
+  REQUEST_ID_HEADER,
+  type QuoteRequest,
+  type QuoteResponse,
+} from "@commission-quote/contract";
+import type { QuoteContext, QuoteProvider } from "./quote-provider";
 
 export type VendorClientErrorCode = "VENDOR_TIMEOUT" | "SERVICE_UNAVAILABLE" | "VENDOR_ERROR";
 
@@ -18,14 +25,18 @@ export type VendorClientErrorCode = "VENDOR_TIMEOUT" | "SERVICE_UNAVAILABLE" | "
 export class VendorClientError extends Error {
   override readonly name = "VendorClientError";
 
+  /** The vendor's HTTP status, when it answered at all (for the logs). */
+  readonly status?: number;
+
   constructor(
     readonly code: VendorClientErrorCode,
     message: string,
     /** Server-side hint (ms) from a Retry-After header, if any. */
     readonly retryAfterMs?: number,
-    options?: { cause?: unknown },
+    options?: { cause?: unknown; status?: number },
   ) {
     super(message, options);
+    this.status = options?.status;
   }
 
   get retryable(): boolean {
@@ -57,6 +68,9 @@ function isTimeout(err: unknown): boolean {
   return (err as { name?: unknown } | null)?.name === "TimeoutError";
 }
 
+/** Used when the caller passes no context (e.g. tests driving the client directly). */
+const SILENT = pino({ level: "silent" });
+
 /** Parses Retry-After (delta-seconds or HTTP date) into milliseconds. */
 function parseRetryAfter(header: string | null): number | undefined {
   if (header === null) return undefined;
@@ -73,7 +87,8 @@ export class VendorQuoteClient implements QuoteProvider {
     this.cfg = { ...DEFAULTS, ...config };
   }
 
-  async generateQuote(request: QuoteRequest): Promise<QuoteResponse> {
+  async generateQuote(request: QuoteRequest, context?: QuoteContext): Promise<QuoteResponse> {
+    const log = context?.log ?? SILENT;
     // One key for every attempt of this logical request: if a timed-out
     // attempt actually reached the vendor, the retry returns the same
     // quote instead of creating a duplicate.
@@ -85,8 +100,16 @@ export class VendorQuoteClient implements QuoteProvider {
       const remaining = deadline - Date.now();
       if (remaining <= 0) break;
 
+      const started = Date.now();
       try {
-        return await this.attemptQuote(request, idempotencyKey, Math.min(this.cfg.timeoutMs, remaining));
+        const quote = await this.attemptQuote(
+          request,
+          idempotencyKey,
+          context?.requestId,
+          Math.min(this.cfg.timeoutMs, remaining),
+        );
+        log.info({ attempt, durationMs: Date.now() - started, quoteId: quote.quoteId }, "vendor quote received");
+        return quote;
       } catch (err) {
         lastError =
           err instanceof VendorClientError
@@ -94,11 +117,16 @@ export class VendorQuoteClient implements QuoteProvider {
             : new VendorClientError("VENDOR_ERROR", "Unexpected error talking to the vendor.", undefined, {
                 cause: err,
               });
+        log.warn(
+          { attempt, durationMs: Date.now() - started, code: lastError.code, status: lastError.status, err: lastError },
+          "vendor attempt failed",
+        );
 
         if (!lastError.retryable || attempt === this.cfg.maxAttempts) break;
 
         const delay = this.backoffDelay(attempt, lastError.retryAfterMs);
         if (Date.now() + delay >= deadline) break; // no time left for another attempt
+        log.info({ attempt, delayMs: Math.round(delay) }, "retrying vendor call");
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
@@ -106,7 +134,12 @@ export class VendorQuoteClient implements QuoteProvider {
     throw lastError ?? new VendorClientError("VENDOR_TIMEOUT", "Vendor timed out.");
   }
 
-  private async attemptQuote(request: QuoteRequest, idempotencyKey: string, timeoutMs: number): Promise<QuoteResponse> {
+  private async attemptQuote(
+    request: QuoteRequest,
+    idempotencyKey: string,
+    requestId: string | undefined,
+    timeoutMs: number,
+  ): Promise<QuoteResponse> {
     // The signal covers the whole exchange — headers AND body — so a
     // vendor that stalls mid-body is also caught as a timeout.
     const signal = AbortSignal.timeout(timeoutMs);
@@ -119,6 +152,8 @@ export class VendorQuoteClient implements QuoteProvider {
           "content-type": "application/json",
           [API_KEY_HEADER]: this.cfg.apiKey,
           "idempotency-key": idempotencyKey,
+          // Lets the vendor's logs be matched to ours.
+          ...(requestId !== undefined && { [REQUEST_ID_HEADER]: requestId }),
         },
         body: JSON.stringify(request),
         signal,
@@ -137,6 +172,7 @@ export class VendorQuoteClient implements QuoteProvider {
         "SERVICE_UNAVAILABLE",
         "Vendor temporarily unavailable.",
         parseRetryAfter(response.headers.get("retry-after")),
+        { status: response.status },
       );
     }
 
@@ -144,7 +180,9 @@ export class VendorQuoteClient implements QuoteProvider {
     // misconfiguration — retrying won't help, fail fast.
     if (!response.ok) {
       await response.body?.cancel().catch(() => {});
-      throw new VendorClientError("VENDOR_ERROR", `Unexpected vendor response (HTTP ${response.status}).`);
+      throw new VendorClientError("VENDOR_ERROR", `Unexpected vendor response (HTTP ${response.status}).`, undefined, {
+        status: response.status,
+      });
     }
 
     let json: unknown;

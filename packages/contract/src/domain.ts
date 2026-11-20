@@ -16,6 +16,12 @@ export type RiskBand = (typeof RISK_BANDS)[number];
  */
 export const API_KEY_HEADER = "api-key";
 
+/**
+ * Header carrying a request's correlation ID: echoed on our responses
+ * and forwarded to the vendor, so one ID finds a request in every log.
+ */
+export const REQUEST_ID_HEADER = "x-request-id";
+
 export const MAX_LOAN_AMOUNT = 100_000_000;
 export const MAX_LOAN_TERM_MONTHS = 600;
 
@@ -84,6 +90,7 @@ export type QuoteErrorCode = (typeof QUOTE_ERROR_CODES)[number];
 export const QuoteErrorSchema = z.object({
   code: z.enum(QUOTE_ERROR_CODES),
   message: z.string(), // safe, user-displayable message
+  requestId: z.string().optional(), // reference for support; matches the server logs
 });
 export type QuoteError = z.infer<typeof QuoteErrorSchema>;
 
