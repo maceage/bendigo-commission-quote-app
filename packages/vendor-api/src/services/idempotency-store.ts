@@ -5,10 +5,10 @@
 // quote. Bounded twice over: a key expires after a while (24 hours in
 // the app), and once full the oldest key is forgotten. Given a file, it
 // also survives restarts, as a real vendor's store would: the file is
-// read once at startup and rewritten after each new quote.
+// read once at startup and rewritten (and flushed) after each new quote.
 
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { z } from "zod";
 import { QuoteResponseSchema, parseCents, type QuoteRequest } from "@commission-quote/contract";
@@ -112,9 +112,22 @@ function readQuotes(file: string): [string, StoredQuote][] {
   }
 }
 
-/** Written to a temporary file and renamed into place, so a crash mid-write can't leave half a file. */
+/**
+ * Written to a temporary file, flushed to disk and renamed into place, so
+ * neither a crash nor a power cut mid-write can leave half a file.
+ */
 function writeQuotes(file: string, quotes: [string, StoredQuote][]): void {
   const temp = `${file}.tmp`;
-  writeFileSync(temp, JSON.stringify(quotes));
+  writeFileSync(temp, JSON.stringify(quotes), { flush: true });
   renameSync(temp, file);
+  // The rename is only durable once the directory is flushed too. POSIX
+  // allows that; Windows can't open a directory to flush it.
+  if (process.platform !== "win32") {
+    const dir = openSync(dirname(file), "r");
+    try {
+      fsyncSync(dir);
+    } finally {
+      closeSync(dir);
+    }
+  }
 }
