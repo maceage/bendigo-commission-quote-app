@@ -62,6 +62,22 @@ describe("requestQuote", () => {
     });
   });
 
+  it("treats a 200 whose body isn't JSON as an invalid quote, not an unreachable service", async () => {
+    stubFetch(async () => new Response("<html>Welcome</html>", { status: 200 }));
+    expect(await requestQuote(REQUEST)).toEqual({
+      ok: false,
+      error: { code: "VENDOR_ERROR", message: "Received an invalid quote response." },
+    });
+  });
+
+  it("maps a connection dropped mid-body to SERVICE_UNAVAILABLE, not an invalid quote", async () => {
+    const dropped = new ReadableStream({ start: (controller) => controller.error(new TypeError("terminated")) });
+    stubFetch(async () => new Response(dropped, { status: 200 }));
+    const result = await requestQuote(REQUEST);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("SERVICE_UNAVAILABLE");
+  });
+
   it("maps a network failure to SERVICE_UNAVAILABLE", async () => {
     stubFetch(async () => {
       throw new TypeError("Failed to fetch");

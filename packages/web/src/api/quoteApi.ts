@@ -24,6 +24,12 @@ export const REQUEST_TIMEOUT_MS = 15_000;
  */
 export type QuoteResult = { ok: true; quote: QuoteResponse } | { ok: false; error: QuoteError };
 
+/** A 200 that isn't a quote: not JSON, or not the quote's shape. */
+const INVALID_QUOTE: QuoteResult = {
+  ok: false,
+  error: { code: "VENDOR_ERROR", message: "Received an invalid quote response." },
+};
+
 export interface RequestQuoteOptions {
   /** Lets the caller cancel (e.g. a newer submission superseded this one). */
   signal?: AbortSignal;
@@ -49,14 +55,20 @@ export async function requestQuote(
       return { ok: false, error: await parseErrorBody(response) };
     }
 
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch (err) {
+      // A timeout, abort or dropped connection mid-body is handled below.
+      if (!(err instanceof SyntaxError)) throw err;
+      return INVALID_QUOTE;
+    }
+
     // Belt-and-braces: the quote-service validates the vendor's
     // response, but we re-validate HERE too, so a bad 200 body can
     // never render as NaN.
-    const parsed = QuoteResponseSchema.safeParse(await response.json());
-    if (!parsed.success) {
-      return { ok: false, error: { code: "VENDOR_ERROR", message: "Received an invalid quote response." } };
-    }
-    return { ok: true, quote: parsed.data };
+    const parsed = QuoteResponseSchema.safeParse(body);
+    return parsed.success ? { ok: true, quote: parsed.data } : INVALID_QUOTE;
   } catch (err) {
     if (timeout.aborted) {
       return {
@@ -65,8 +77,7 @@ export async function requestQuote(
       };
     }
     if (signal?.aborted) throw err; // caller cancelled — let them ignore it
-    // Network-level failure: dev server down, connection dropped, or a
-    // 200 whose body wasn't JSON.
+    // Network-level failure: dev server down or connection dropped.
     return {
       ok: false,
       error: { code: "SERVICE_UNAVAILABLE", message: "Could not reach the quote service. Check it is running." },
