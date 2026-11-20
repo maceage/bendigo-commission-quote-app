@@ -35,14 +35,14 @@ describe("POST /quotes", () => {
     // vendor drifts from the contract, this test is the alarm.
     expect(QuoteResponseSchema.safeParse(body).success).toBe(true);
 
-    // Sanity on the math: MEDIUM = 3.5% of 250,000 = 8,750.
-    expect(body.totalCommission).toBe(8750);
+    // Sanity on the math: MEDIUM = 3.5% of 250,000 = 8,750, as an exact decimal string.
+    expect(body.totalCommission).toBe("8750.00");
     expect(body.commissionRate).toBe(0.035);
   });
 
   it("returns 400 for a negative loan amount", async () => {
     harness = await startApp(reliable());
-    const res = await post(quotePayload({ loanAmount: -100 }));
+    const res = await post(quotePayload({ loanAmount: "-100" }));
     expect(res.status).toBe(400);
   });
 
@@ -52,9 +52,9 @@ describe("POST /quotes", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 400 for string-typed numbers (classic form-output bug)", async () => {
+  it("returns 400 for a loan amount sent as a JSON number, which a client would parse as a float", async () => {
     harness = await startApp(reliable());
-    const res = await post(quotePayload({ loanAmount: "250000" }));
+    const res = await post(quotePayload({ loanAmount: 250000 }));
     expect(res.status).toBe(400);
   });
 

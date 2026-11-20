@@ -8,7 +8,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 BASE=http://localhost:8080
-QUOTE='{"loanAmount":250000,"loanTermInMonths":36,"riskBand":"MEDIUM"}'
+QUOTE='{"loanAmount":"250000","loanTermInMonths":36,"riskBand":"MEDIUM"}'
 WORK=$(mktemp -d)
 
 # No simulated failures or hangs unless a check turns them on.
@@ -64,11 +64,11 @@ pass "deep links fall back to the app"
 # --- API through nginx -> quote-service -> vendor-api ---
 read -r status _ < <(request /api/quotes "$QUOTE")
 [ "$status" = 200 ] || fail "quote returned $status: $(cat "$WORK/body")"
-grep -q '"totalCommission":8750' "$WORK/body" || fail "unexpected quote: $(cat "$WORK/body")"
+grep -q '"totalCommission":"8750.00"' "$WORK/body" || fail "unexpected quote: $(cat "$WORK/body")"
 [ -n "$(header x-request-id)" ] || fail "quote response has no x-request-id"
 pass "quote returned with a request ID"
 
-read -r status _ < <(request /api/quotes '{"loanAmount":-1,"loanTermInMonths":36,"riskBand":"MEDIUM"}')
+read -r status _ < <(request /api/quotes '{"loanAmount":"-1","loanTermInMonths":36,"riskBand":"MEDIUM"}')
 [ "$status" = 400 ] || fail "invalid quote returned $status"
 grep -q '"code":"VALIDATION_ERROR"' "$WORK/body" && grep -q '"requestId"' "$WORK/body" ||
   fail "unexpected validation error: $(cat "$WORK/body")"

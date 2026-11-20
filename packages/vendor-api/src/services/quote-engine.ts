@@ -6,8 +6,8 @@ import {
   BASIS_POINTS_PER_UNIT,
   QuoteRequestSchema,
   applyBasisPoints,
-  fromCents,
-  toCents,
+  formatCents,
+  parseCents,
   type QuoteRequest,
   type QuoteResponse,
   type RiskBand,
@@ -29,13 +29,13 @@ export function generateQuote(payload: unknown): QuoteResponse {
   const request: QuoteRequest = QuoteRequestSchema.parse(payload);
 
   const basisPoints = COMMISSION_BASIS_POINTS[request.riskBand];
-  // Integer cents x basis points, rounded half up to the cent. Only the
-  // JSON response goes back to decimal dollars.
-  const commissionCents = applyBasisPoints(toCents(request.loanAmount), basisPoints);
+  // Integer cents x basis points, rounded half up to the cent. The
+  // schema has already checked the amount parses, hence the `!`.
+  const commissionCents = applyBasisPoints(parseCents(request.loanAmount)!, basisPoints);
 
   return {
     quoteId: randomUUID(),
     commissionRate: basisPoints / BASIS_POINTS_PER_UNIT,
-    totalCommission: fromCents(commissionCents),
+    totalCommission: formatCents(commissionCents),
   };
 }

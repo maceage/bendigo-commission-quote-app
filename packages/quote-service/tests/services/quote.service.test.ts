@@ -10,7 +10,7 @@ import { QuoteService } from "../../src/services/quote.service";
 import { VendorClientError } from "../../src/services/vendor-client";
 
 const REQUEST: QuoteRequest = {
-  loanAmount: 250_000,
+  loanAmount: "250000",
   loanTermInMonths: 36,
   riskBand: "MEDIUM",
 };
@@ -18,7 +18,7 @@ const REQUEST: QuoteRequest = {
 const QUOTE: QuoteResponse = {
   quoteId: "33333333-3333-4333-8333-333333333333",
   commissionRate: 0.035,
-  totalCommission: 8750,
+  totalCommission: "8750.00",
 };
 
 describe("QuoteService", () => {

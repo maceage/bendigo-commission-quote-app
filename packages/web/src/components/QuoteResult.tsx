@@ -1,6 +1,7 @@
 // Renders a successful quote. Formatting lives here and nowhere
 // else: currency in AUD (a bank's UI does not show raw floats),
 // rate as a percentage — the contract stores a 0-1 fraction.
+// Intl formats a decimal string exactly, so the amount never becomes a float.
 // aria-live="polite" so screen-reader users hear the quote arrive.
 
 import type { QuoteResponse } from "@commission-quote/contract";
@@ -19,7 +20,7 @@ export function QuoteResult({ quote }: { quote: QuoteResponse }) {
       <dl>
         <div>
           <dt>Total commission</dt>
-          <dd className="quote-total">{currency.format(quote.totalCommission)}</dd>
+          <dd className="quote-total">{currency.format(quote.totalCommission as Intl.StringNumericLiteral)}</dd>
         </div>
         <div>
           <dt>Commission rate</dt>

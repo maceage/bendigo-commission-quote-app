@@ -1,32 +1,35 @@
 // Money arithmetic in integer cents. Binary floats can't hold most cent
 // values exactly (0.29 is stored as 0.28999...), so float maths can round
 // a half-cent the wrong way: $250,011.75 at 2% is $5,000.235, which
-// rounds to $5,000.24, but float maths gives $5,000.23. The vendor's JSON
-// contract carries amounts as plain decimal numbers, so convert at the
-// edges: toCents on the way in, fromCents on the way out.
+// rounds to $5,000.24, but float maths gives $5,000.23. So amounts travel
+// as decimal strings ("250011.75") and never become float dollars:
+// parseCents on the way in, formatCents on the way out.
 
 /** Basis points in 100% (1 bp = 0.01%). */
 export const BASIS_POINTS_PER_UNIT = 10_000;
 
+/** A non-negative amount with up to two decimal places, e.g. "250000" or "250011.75". */
+const DECIMAL_AMOUNT = /^(\d+)(?:\.(\d{1,2}))?$/;
+
 /**
- * True when the amount is a whole number of cents. Allows a few ULPs of
- * float error rather than requiring an exact integer, since 0.29 * 100 is
- * 28.999999999999996. (Zod's multipleOf(0.01) accepts 0.0000001, so it
- * isn't enough.)
+ * A decimal string to integer cents, read digit by digit so it's exact.
+ * Undefined if it isn't a plain amount with at most two decimal places,
+ * or is too large to count in cents exactly.
  */
-export function hasWholeCents(amount: number): boolean {
-  const cents = amount * 100;
-  return Math.abs(cents - Math.round(cents)) <= 4 * Number.EPSILON * Math.max(1, Math.abs(cents));
+export function parseCents(amount: string): number | undefined {
+  const match = DECIMAL_AMOUNT.exec(amount);
+  if (match === null) return undefined;
+  const cents = Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0"));
+  // A whole part too big to be exact also pushes cents past the safe range.
+  return Number.isSafeInteger(cents) ? cents : undefined;
 }
 
-/** Dollars to integer cents. Exact for any amount that passes hasWholeCents. */
-export function toCents(dollars: number): number {
-  return Math.round(dollars * 100);
-}
-
-/** Integer cents to dollars, for the JSON contract and display. */
-export function fromCents(cents: number): number {
-  return cents / 100;
+/** Integer cents to a decimal string with two places, for the JSON contract. */
+export function formatCents(cents: number): string {
+  if (!Number.isSafeInteger(cents) || cents < 0) {
+    throw new RangeError(`Can't format ${cents} cents exactly.`);
+  }
+  return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, "0")}`;
 }
 
 /**

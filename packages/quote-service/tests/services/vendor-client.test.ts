@@ -9,11 +9,11 @@ import { VendorClientError, VendorQuoteClient, type VendorClientConfig } from ".
 import { captureLogs } from "../test-server";
 
 const KEY = "test-vendor-key-123";
-const REQUEST = { loanAmount: 250_000, loanTermInMonths: 36, riskBand: "MEDIUM" as const };
+const REQUEST = { loanAmount: "250000", loanTermInMonths: 36, riskBand: "MEDIUM" as const };
 const GOOD_RESPONSE = JSON.stringify({
   quoteId: "22222222-2222-4222-8222-222222222222",
   commissionRate: 0.035,
-  totalCommission: 8750,
+  totalCommission: "8750.00",
 });
 
 let server: Server | undefined;
@@ -85,13 +85,13 @@ describe("VendorQuoteClient", () => {
   it("returns the quote when the vendor succeeds immediately", async () => {
     const { url } = await startVendor(statuses([200]));
     const quote = await makeClient(url).generateQuote(REQUEST);
-    expect(quote.totalCommission).toBe(8750);
+    expect(quote.totalCommission).toBe("8750.00");
   });
 
   it("accepts a vendor quoteId that is not a UUID", async () => {
     const { url } = await startVendor((_req, res) => {
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ quoteId: "Q-12345", commissionRate: 0.035, totalCommission: 8750 }));
+      res.end(JSON.stringify({ quoteId: "Q-12345", commissionRate: 0.035, totalCommission: "8750.00" }));
     });
     const quote = await makeClient(url).generateQuote(REQUEST);
     expect(quote.quoteId).toBe("Q-12345");
@@ -100,7 +100,7 @@ describe("VendorQuoteClient", () => {
   it("rejects an empty quoteId as malformed", async () => {
     const { url } = await startVendor((_req, res) => {
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ quoteId: "", commissionRate: 0.035, totalCommission: 8750 }));
+      res.end(JSON.stringify({ quoteId: "", commissionRate: 0.035, totalCommission: "8750.00" }));
     });
     const err = await failureOf(makeClient(url).generateQuote(REQUEST));
     expect(err.code).toBe("VENDOR_ERROR");

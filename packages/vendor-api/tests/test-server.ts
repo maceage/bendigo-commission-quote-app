@@ -27,7 +27,7 @@ export const QUOTE_ENDPOINT = "/quotes";
 
 export function quotePayload(overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({
-    loanAmount: 250_000,
+    loanAmount: "250000",
     loanTermInMonths: 36,
     riskBand: "MEDIUM",
     ...overrides,

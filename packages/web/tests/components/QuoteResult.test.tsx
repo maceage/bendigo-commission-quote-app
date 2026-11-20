@@ -9,7 +9,9 @@ function valueFor(label: string): string | null | undefined {
 }
 
 function renderQuote(overrides: Partial<QuoteResponse> = {}) {
-  render(<QuoteResult quote={{ quoteId: "Q-12345", commissionRate: 0.035, totalCommission: 8750, ...overrides }} />);
+  render(
+    <QuoteResult quote={{ quoteId: "Q-12345", commissionRate: 0.035, totalCommission: "8750.00", ...overrides }} />,
+  );
 }
 
 describe("QuoteResult", () => {
@@ -32,10 +34,12 @@ describe("QuoteResult", () => {
   });
 
   it.each([
-    [5000.24, "$5,000.24"],
-    [0.15, "$0.15"],
-    [6_000_000, "$6,000,000.00"],
-  ])("formats a commission of %f as %s", (totalCommission, shown) => {
+    ["5000.24", "$5,000.24"],
+    ["0.15", "$0.15"],
+    ["6000000.00", "$6,000,000.00"],
+    // Past 2^53 cents a float would round this to …409.94; the string is shown exactly.
+    ["90071992547409.93", "$90,071,992,547,409.93"],
+  ])("formats a commission of %s as %s", (totalCommission, shown) => {
     renderQuote({ totalCommission });
     expect(valueFor("Total commission")).toBe(shown);
   });

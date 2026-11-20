@@ -53,7 +53,7 @@ describe("quote-service -> mock vendor", () => {
     expect(res.status).toBe(200);
     const quote = QuoteResponseSchema.parse(await res.json());
     expect(quote.commissionRate).toBe(0.035);
-    expect(quote.totalCommission).toBe(8750);
+    expect(quote.totalCommission).toBe("8750.00");
   });
 
   it("surfaces a key the vendor rejects as VENDOR_ERROR without retrying", async () => {

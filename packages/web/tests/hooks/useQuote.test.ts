@@ -8,11 +8,11 @@ vi.mock("../../src/api/quoteApi", () => ({ requestQuote: vi.fn() }));
 const { requestQuote } = await import("../../src/api/quoteApi");
 const requestQuoteMock = vi.mocked(requestQuote);
 
-const REQUEST: QuoteRequest = { loanAmount: 250_000, loanTermInMonths: 36, riskBand: "MEDIUM" };
+const REQUEST: QuoteRequest = { loanAmount: "250000", loanTermInMonths: 36, riskBand: "MEDIUM" };
 const quote = (id: string): QuoteResponse => ({
   quoteId: `${id}1111111-1111-4111-8111-111111111111`,
   commissionRate: 0.035,
-  totalCommission: 8750,
+  totalCommission: "8750.00",
 });
 
 /** A requestQuote call we resolve by hand; rejects like fetch when aborted. */

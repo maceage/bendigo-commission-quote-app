@@ -7,7 +7,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "../src/App";
 
-const QUOTE = { quoteId: "Q-12345", commissionRate: 0.035, totalCommission: 8750 };
+const QUOTE = { quoteId: "Q-12345", commissionRate: 0.035, totalCommission: "8750.00" };
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });

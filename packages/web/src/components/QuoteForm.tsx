@@ -1,5 +1,6 @@
 // Captures loan details as STRINGS (HTML inputs are string-typed),
-// converts them to numbers at the submit boundary, and validates with
+// converts the term to a number at the submit boundary (the amount stays
+// a decimal string, as the contract carries it), and validates with
 // the SAME shared schema the backend uses — so the form and the API
 // can never disagree about what's valid. The backend stays the
 // authority (defence in depth).
@@ -37,9 +38,14 @@ function toNumber(value: string): number | undefined {
   return value.trim() === "" ? undefined : Number(value);
 }
 
+/** Blank -> undefined, else the trimmed text; the schema checks it's an amount. */
+function toAmount(value: string): string | undefined {
+  return value.trim() === "" ? undefined : value.trim();
+}
+
 function validate(fields: Fields): { request: QuoteRequest } | { errors: FieldErrors } {
   const parsed = QuoteRequestSchema.safeParse({
-    loanAmount: toNumber(fields.loanAmount),
+    loanAmount: toAmount(fields.loanAmount),
     loanTermInMonths: toNumber(fields.loanTermInMonths),
     riskBand: fields.riskBand,
   });

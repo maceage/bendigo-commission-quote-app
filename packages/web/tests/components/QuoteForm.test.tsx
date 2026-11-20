@@ -17,14 +17,14 @@ function setup(loading = false) {
 }
 
 describe("QuoteForm", () => {
-  it("submits real numbers, not strings", async () => {
+  it("submits the term as a number and the amount as the decimal string typed", async () => {
     const { user, amount, term, band, submit, onSubmit } = setup();
     await user.type(amount, "250000.50");
     await user.type(term, "36");
     await user.selectOptions(band, "HIGH");
     await user.click(submit);
 
-    expect(onSubmit).toHaveBeenCalledWith({ loanAmount: 250000.5, loanTermInMonths: 36, riskBand: "HIGH" });
+    expect(onSubmit).toHaveBeenCalledWith({ loanAmount: "250000.50", loanTermInMonths: 36, riskBand: "HIGH" });
   });
 
   it("shows field errors for blank fields and doesn't submit", async () => {

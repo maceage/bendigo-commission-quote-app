@@ -19,7 +19,7 @@ afterEach(async () => {
 const QUOTE: QuoteResponse = {
   quoteId: "11111111-1111-4111-8111-111111111111",
   commissionRate: 0.035,
-  totalCommission: 8750,
+  totalCommission: "8750.00",
 };
 
 function stubProvider(impl: (req: QuoteRequest) => Promise<QuoteResponse>) {
@@ -55,7 +55,7 @@ describe("POST /api/quotes", () => {
     const ok = await post(loanPayload());
     expect(ok.headers.get(REQUEST_ID_HEADER)).toMatch(/^[0-9a-f-]{36}$/);
 
-    const bad = await post(loanPayload({ loanAmount: -1 }));
+    const bad = await post(loanPayload({ loanAmount: "-1" }));
     const id = bad.headers.get(REQUEST_ID_HEADER);
     expect(id).not.toBe(ok.headers.get(REQUEST_ID_HEADER));
     expect((await errorBody(bad)).requestId).toBe(id);
@@ -79,16 +79,16 @@ describe("POST /api/quotes", () => {
 
     const res = await post(loanPayload({ extraField: "should be stripped" }));
     expect(provider.generateQuote).toHaveBeenCalledWith(
-      { loanAmount: 250000, loanTermInMonths: 36, riskBand: "MEDIUM" },
+      { loanAmount: "250000", loanTermInMonths: 36, riskBand: "MEDIUM" },
       // The request's ID and logger travel with it, for the vendor call's logs.
       { requestId: res.headers.get(REQUEST_ID_HEADER), log: expect.anything() },
     );
   });
 
   it.each([
-    { field: "loanAmount", value: -100 },
-    { field: "loanAmount", value: 1000.005 }, // fraction of a cent
-    { field: "loanAmount", value: 0.0000001 }, // fraction of a cent, prints as 1e-7
+    { field: "loanAmount", value: "-100" },
+    { field: "loanAmount", value: "1000.005" }, // fraction of a cent
+    { field: "loanAmount", value: 250000 }, // a JSON number, which would be parsed as a float
     { field: "riskBand", value: "EXTREME" },
     { field: "loanTermInMonths", value: 12.5 }, // non-integer
     { field: "loanTermInMonths", value: 601 }, // over the cap
