@@ -59,6 +59,19 @@ describe("api-key auth", () => {
     expect(logged).not.toContain(VALID_KEY); // ...without the key
   });
 
+  it("rejects a wrong key with as many characters but more bytes than the real one", async () => {
+    harness = await startApp(createApp({ apiKey: VALID_KEY }));
+    // "é" is one character but two bytes in UTF-8, so a byte-by-byte
+    // compare that only checked the character count would throw here.
+    const sameLength = `${VALID_KEY.slice(0, -1)}é`;
+    const res = await fetch(`${harness.url}${QUOTE_ENDPOINT}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", [API_KEY_HEADER]: sameLength },
+      body: quotePayload(),
+    });
+    expect(res.status).toBe(401);
+  });
+
   it("ignores a valid key sent under any other header name", async () => {
     harness = await startApp(createApp({ apiKey: VALID_KEY, failureRate: 0, timeoutRate: 0, latencyMs: [0, 0] }));
     const res = await fetch(`${harness.url}${QUOTE_ENDPOINT}`, {

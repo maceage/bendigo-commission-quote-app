@@ -1,19 +1,25 @@
 // Strictly secured, per the contract: no valid key, no service.
 
 import type { Request, Response, NextFunction } from "express";
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { API_KEY_HEADER } from "@commission-quote/contract";
 
+function digest(key: string): Buffer {
+  return createHash("sha256").update(key).digest();
+}
+
 export function apiKeyAuth(expectedKey: string) {
+  const expected = digest(expectedKey);
+
   return (req: Request, res: Response, next: NextFunction): void => {
     const provided = req.header(API_KEY_HEADER);
 
-    // Compare in constant time to avoid leaking key length/content
-    // via timing differences. Buffers must be equal length to compare.
-    const valid =
-      typeof provided === "string" &&
-      provided.length === expectedKey.length &&
-      timingSafeEqual(Buffer.from(provided), Buffer.from(expectedKey));
+    // Compare in constant time to avoid leaking the key via timing
+    // differences. timingSafeEqual needs buffers of equal length, so
+    // compare SHA-256 digests (always 32 bytes): any key, whatever its
+    // length or characters, is compared without throwing or revealing
+    // the real key's length.
+    const valid = typeof provided === "string" && timingSafeEqual(digest(provided), expected);
 
     if (!valid) {
       // Same response for "missing" and "wrong" key — don't tell
