@@ -57,8 +57,10 @@ read -r status _ < <(request /)
 grep -q '<div id="root">' "$WORK/body" || fail "page has no app root"
 [ "$(header x-content-type-options)" = nosniff ] || fail "page lacks X-Content-Type-Options: nosniff"
 [ "$(header referrer-policy)" = same-origin ] || fail "page lacks Referrer-Policy: same-origin"
+header content-security-policy | grep -q "default-src 'self'" || fail "page lacks a Content-Security-Policy"
+header content-security-policy | grep -q "frame-ancestors 'none'" || fail "page can be framed (no frame-ancestors 'none')"
 [ "$(header cache-control)" = no-cache ] || fail "page should not be cached"
-pass "page served with security headers, not cached"
+pass "page served with security headers (incl. CSP), not cached"
 
 asset=$(grep -oE '/assets/[^"]+\.js' "$WORK/body" | head -1)
 read -r status _ < <(request "$asset")
