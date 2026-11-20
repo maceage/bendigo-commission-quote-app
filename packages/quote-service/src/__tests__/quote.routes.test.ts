@@ -63,6 +63,8 @@ describe("POST /api/quotes", () => {
 
   it.each([
     { field: "loanAmount", value: -100 },
+    { field: "loanAmount", value: 1000.005 }, // fraction of a cent
+    { field: "loanAmount", value: 0.0000001 }, // fraction of a cent, prints as 1e-7
     { field: "riskBand", value: "EXTREME" },
     { field: "loanTermInMonths", value: 12.5 }, // non-integer
     { field: "loanTermInMonths", value: 601 }, // over the cap

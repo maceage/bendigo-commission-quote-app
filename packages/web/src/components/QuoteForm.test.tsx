@@ -56,6 +56,15 @@ describe("QuoteForm", () => {
     expect(screen.getByText("Loan term must be a whole number of months.")).toBeInTheDocument();
   });
 
+  it("rejects a loan amount with fractions of a cent", async () => {
+    const { user, amount, term, submit, onSubmit } = setup();
+    await user.type(amount, "1000.005");
+    await user.type(term, "12");
+    await user.click(submit);
+    expect(screen.getByText("Loan amount can't include fractions of a cent.")).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it("clears a field's error as soon as it's edited", async () => {
     const { user, amount, submit } = setup();
     await user.click(submit);

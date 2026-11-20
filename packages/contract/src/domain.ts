@@ -20,13 +20,25 @@ export const MAX_LOAN_AMOUNT = 100_000_000;
 export const MAX_LOAN_TERM_MONTHS = 600;
 
 /**
+ * True when the amount is a whole number of cents. Binary floats can't
+ * hold most cent values exactly (0.29 * 100 = 28.999999999999996), so
+ * allow a few ULPs of error rather than requiring an exact integer.
+ * (Zod's multipleOf(0.01) accepts 0.0000001, so it isn't enough.)
+ */
+function hasWholeCents(amount: number): boolean {
+  const cents = amount * 100;
+  return Math.abs(cents - Math.round(cents)) <= 4 * Number.EPSILON * Math.max(1, Math.abs(cents));
+}
+
+/**
  * Request payload: the loan details sent to the Commission Quote API.
  */
 export const QuoteRequestSchema = z.object({
   loanAmount: z
     .number({ required_error: "Enter a loan amount.", invalid_type_error: "Loan amount must be a number." })
     .positive("Loan amount must be greater than zero.")
-    .max(MAX_LOAN_AMOUNT, "Loan amount must be $100,000,000 or less."),
+    .max(MAX_LOAN_AMOUNT, "Loan amount must be $100,000,000 or less.")
+    .refine(hasWholeCents, "Loan amount can't include fractions of a cent."),
   loanTermInMonths: z
     .number({ required_error: "Enter a loan term.", invalid_type_error: "Loan term must be a number." })
     .int("Loan term must be a whole number of months.")
