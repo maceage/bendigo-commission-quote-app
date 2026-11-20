@@ -30,7 +30,7 @@ npm test -w packages/quote-service -- tests/services/vendor-client.test.ts
 npm test -w packages/web -- -t "newest request wins"
 ```
 
-CI (`.github/workflows/ci-checks.yml`) runs format:check, lint, typecheck, test and build on Node 22 and 24, so code must pass Prettier. A `DockerSmokeTest` job builds the images with Compose and requests a quote through nginx.
+CI (`.github/workflows/ci-checks.yml`) runs format:check, lint, typecheck, test and build on Node 22 and 24, so code must pass Prettier. A `DockerSmokeTest` job runs `docker/smoke-test.sh`: it builds and starts the stack, then checks through nginx the page (security headers, deep-link fallback, asset caching), a quote, a validation error, that the backends aren't reachable from the host, and a 504 after the full 8s with the vendor hanging. Run the same script locally with `bash docker/smoke-test.sh` after Docker, nginx or Compose changes; add a check there for any new nginx behaviour.
 
 Docker Desktop is installed on the dev machine, so test Docker, nginx or Compose changes locally before pushing: `docker compose up --build --detach --wait`, then `curl` http://localhost:8080 (the page, and `POST /api/quotes`), and `docker compose down` when done. To exercise an error path, recreate just the vendor with a setting forced on, e.g. `VENDOR_TIMEOUT_RATE=1 docker compose up -d --wait vendor-api` (expect a 504 after about 8s), then run it again without the variable to restore the defaults. Recreating a container discards its logs, so read `docker compose logs` before recreating it. A shell started before Docker was installed may not have `docker` on its PATH (it lives in `C:\Users\Mace\AppData\Local\Programs\DockerDesktop\resources\bin`).
 

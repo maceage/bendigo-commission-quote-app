@@ -28,25 +28,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VENDOR_API_KEY: ci-only-key
-      # No simulated failures or hangs, so the quote below must succeed.
-      VENDOR_FAILURE_RATE: "0"
-      VENDOR_TIMEOUT_RATE: "0"
     steps:
       - uses: actions/checkout@v4
-      - name: Build the images and start the stack
-        run: docker compose up --build --detach --wait
-      - name: Serve the front end through nginx
-        run: curl --fail -sS --retry 5 --retry-connrefused http://localhost:8080/ | grep -q '<div id="root">'
-      - name: Request a quote through nginx -> quote-service -> vendor-api
-        run: |
-          curl --fail-with-body -sS -D - -H 'content-type: application/json' \
-            -d '{"loanAmount":250000,"loanTermInMonths":36,"riskBand":"MEDIUM"}' \
-            http://localhost:8080/api/quotes | tee response.txt
-          grep -qi '^x-request-id:' response.txt
-          grep -q '"totalCommission":8750' response.txt
-      - name: Show container logs
-        if: failure()
-        run: docker compose logs
-      - name: Stop the stack
-        if: always()
-        run: docker compose down
+      # Builds and starts the stack, checks it through nginx, and shuts it
+      # down (printing container logs on failure). Same script runs locally.
+      - name: Smoke-test the Docker stack
+        run: bash docker/smoke-test.sh

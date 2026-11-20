@@ -112,7 +112,7 @@ Compose waits for each backend's `/healthz` before starting the next service, an
 npm run check   # format:check + lint + typecheck + test — the same steps CI runs
 ```
 
-Individual steps: `npm run lint`, `npm run typecheck`, `npm run format` (Prettier, writes), `npm run format:check`. GitHub Actions (`.github/workflows/ci-checks.yml`) runs them, plus the build, on Node 22 and 24. A second job builds the Docker images, starts the stack and requests a quote through nginx.
+Individual steps: `npm run lint`, `npm run typecheck`, `npm run format` (Prettier, writes), `npm run format:check`. GitHub Actions (`.github/workflows/ci-checks.yml`) runs them, plus the build, on Node 22 and 24. A second job runs `docker/smoke-test.sh`, which builds and starts the Docker stack and checks it through nginx: the page and its headers, deep links, a quote, a validation error, that the backends are private, and a 504 when the vendor hangs. You can run it yourself with `bash docker/smoke-test.sh`.
 
 ## Running the tests
 
@@ -147,6 +147,7 @@ npm test -w packages/web
 - **web / Alert** - shows the request ID as a reference when the error has one, and nothing when it doesn't (e.g. a network failure).
 - **web / QuoteResult** - the commission in AUD (`$8,750.00`), the 0-1 rate as a percentage (`0.035` shows as `3.5%`, never `350%` or `0.04%`), the quote reference, and that screen readers are told when the quote arrives.
 - **web / QuoteForm** - numbers (not strings) are submitted; blank, over-limit and fractional inputs show the shared schema's messages per field; errors clear on edit; everything is disabled while loading.
+- **Docker stack (`docker/smoke-test.sh`, run in CI)** - through nginx: the page with its security headers and no caching, long-term caching of fingerprinted assets, deep links falling back to the app, a quote with its request ID, a validation error, the backends unreachable from the host, and a 504 `VENDOR_TIMEOUT` that takes the full 8s when the vendor hangs (proving nginx doesn't cut off quote-service's deadline).
 
 Randomness is made deterministic via injected config (`failureRate` and `timeoutRate` of 0 or 1, fixed latency, fast backoff) rather than sleeps or flaky probabilistic assertions.
 
