@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QuoteForm } from "../../src/components/QuoteForm";
 
@@ -81,6 +81,20 @@ describe("QuoteForm", () => {
     await user.type(term, "12");
     await user.click(submit);
     expect(screen.getByText("Loan amount can't include fractions of a cent.")).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("shows the schema's message for a risk band that isn't one of the options", async () => {
+    const { user, amount, term, band, submit, onSubmit } = setup();
+    await user.type(amount, "1000");
+    await user.type(term, "12");
+    // No option has this value, so the select reports "" (e.g. a tampered DOM).
+    fireEvent.change(band, { target: { value: "EXTREME" } });
+    await user.click(submit);
+
+    expect(screen.getByText("Choose a risk band: LOW, MEDIUM or HIGH.")).toBeInTheDocument();
+    expect(band).toHaveAttribute("aria-invalid", "true");
+    expect(band).toHaveAttribute("aria-describedby", "riskBand-error");
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
