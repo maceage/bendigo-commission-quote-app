@@ -12,6 +12,8 @@ export interface VendorApiOptions {
   apiKey: string;
   /** Probability (0-1) that any given quote request randomly fails. */
   failureRate?: number;
+  /** Probability (0-1) that a quote is issued but the response never arrives. */
+  timeoutRate?: number;
   /** Simulated latency range in ms: [min, max]. */
   latencyMs?: [number, number];
 }
@@ -20,6 +22,8 @@ const DEFAULTS = {
   // 20% of requests fail: often enough to demonstrate retries, rare
   // enough that the demo isn't painful.
   failureRate: 0.2,
+  // 5% hang: rare, because each one costs the caller a full timeout.
+  timeoutRate: 0.05,
   latencyMs: [50, 400] as [number, number],
 };
 
@@ -51,24 +55,29 @@ export function createApp(options: VendorApiOptions) {
     simulateLatency(cfg.latencyMs, () => {
       try {
         const key = req.header("idempotency-key");
-        const previous = key === undefined ? undefined : issued.get(key);
-        if (previous !== undefined) {
-          res.status(200).json(previous);
-          return;
-        }
+        let quote = key === undefined ? undefined : issued.get(key);
 
-        if (Math.random() < cfg.failureRate) {
-          res.status(500).json({ error: "Internal vendor error." });
-          return;
-        }
+        if (quote === undefined) {
+          if (Math.random() < cfg.failureRate) {
+            res.status(500).json({ error: "Internal vendor error." });
+            return;
+          }
 
-        const quote = generateQuote(req.body);
-        if (key !== undefined) {
-          issued.set(key, quote);
-          if (issued.size > IDEMPOTENCY_CACHE_SIZE) {
-            issued.delete(issued.keys().next().value!);
+          quote = generateQuote(req.body);
+          if (key !== undefined) {
+            issued.set(key, quote);
+            if (issued.size > IDEMPOTENCY_CACHE_SIZE) {
+              issued.delete(issued.keys().next().value!);
+            }
           }
         }
+
+        // The quote exists, but the caller never hears back: like a
+        // response lost in transit. The connection stays open until the
+        // caller gives up, and a retry with the same Idempotency-Key gets
+        // this quote rather than a duplicate.
+        if (Math.random() < cfg.timeoutRate) return;
+
         res.status(200).json(quote);
       } catch (err) {
         next(err);

@@ -8,7 +8,7 @@ import { QuoteErrorSchema, QuoteResponseSchema } from "@commission-quote/contrac
 import { createApp as createVendorApp, type VendorApiOptions } from "@commission-quote/vendor-api/app";
 import { createApp } from "../app";
 import { QuoteService } from "../services/quote.service";
-import { VendorQuoteClient } from "../services/vendor-client";
+import { VendorQuoteClient, type VendorClientConfig } from "../services/vendor-client";
 import { startApp, loanPayload } from "./test-server";
 
 const KEY = "test-vendor-key-123";
@@ -21,11 +21,13 @@ afterEach(async () => {
 });
 
 /** Starts the mock vendor and quote-service wired to it; returns a POST /api/quotes helper. */
-async function startStack(vendor: Partial<VendorApiOptions> = {}, clientKey = KEY) {
-  const vendorHarness = await startApp(createVendorApp({ apiKey: KEY, failureRate: 0, latencyMs: [0, 0], ...vendor }));
+async function startStack(vendor: Partial<VendorApiOptions> = {}, clientConfig: Partial<VendorClientConfig> = {}) {
+  const vendorHarness = await startApp(
+    createVendorApp({ apiKey: KEY, failureRate: 0, timeoutRate: 0, latencyMs: [0, 0], ...vendor }),
+  );
   harnesses.push(vendorHarness);
 
-  const client = new VendorQuoteClient({ baseUrl: vendorHarness.url, apiKey: clientKey, baseDelayMs: 10 });
+  const client = new VendorQuoteClient({ baseUrl: vendorHarness.url, apiKey: KEY, baseDelayMs: 10, ...clientConfig });
   const service = await startApp(createApp({ quoteService: new QuoteService(client) }));
   harnesses.push(service);
 
@@ -45,7 +47,7 @@ describe("quote-service -> mock vendor", () => {
   });
 
   it("surfaces a key the vendor rejects as VENDOR_ERROR without retrying", async () => {
-    const post = await startStack({}, "not-the-key");
+    const post = await startStack({}, { apiKey: "not-the-key" });
     const res = await post(loanPayload());
 
     expect(res.status).toBe(502);
@@ -58,5 +60,13 @@ describe("quote-service -> mock vendor", () => {
 
     expect(res.status).toBe(503);
     expect(QuoteErrorSchema.parse(await res.json()).code).toBe("SERVICE_UNAVAILABLE");
+  });
+
+  it("returns VENDOR_TIMEOUT when the vendor never responds", async () => {
+    const post = await startStack({ timeoutRate: 1 }, { timeoutMs: 100, totalTimeoutMs: 500 });
+    const res = await post(loanPayload());
+
+    expect(res.status).toBe(504);
+    expect(QuoteErrorSchema.parse(await res.json()).code).toBe("VENDOR_TIMEOUT");
   });
 });

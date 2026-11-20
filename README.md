@@ -26,12 +26,12 @@ Key points:
 
 TypeScript throughout (one language, shared types across all packages), npm workspaces monorepo:
 
-| Package                  | Role                                                                                          |
-| ------------------------ | --------------------------------------------------------------------------------------------- |
-| `packages/contract`      | Shared domain types + Zod schemas (single source of truth)                                    |
-| `packages/vendor-api`    | Mock third-party Commission Quote API (API-key auth, simulated latency + random 20% failures) |
-| `packages/quote-service` | Our backend: validation, API-key custody, retry/timeout, error mapping                        |
-| `packages/web`           | React + Vite front-end (form, loading/error/success states)                                   |
+| Package                  | Role                                                                                                      |
+| ------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `packages/contract`      | Shared domain types + Zod schemas (single source of truth)                                                |
+| `packages/vendor-api`    | Mock third-party Commission Quote API (API-key auth, simulated latency, random 20% failures and 5% hangs) |
+| `packages/quote-service` | Our backend: validation, API-key custody, retry/timeout, error mapping                                    |
+| `packages/web`           | React + Vite front-end (form, loading/error/success states)                                               |
 
 Tests: Vitest. No ORM/database - deliberately out of scope for this challenge.
 
@@ -69,6 +69,8 @@ This starts all three components with `concurrently` (colour-coded output):
 Open **http://localhost:5173**, enter loan details, and press **Generate Quote**.
 
 By default roughly 1 in 5 vendor calls hits the simulated random failure. quote-service retries up to 3 times, so a user only sees an error when every attempt fails (about 1 in 125 quotes). To see the error state on demand, set `VENDOR_FAILURE_RATE` in `.env` and restart: `1` fails every request (the UI shows "Quote service unavailable"), and a value like `0.7` gives a mix of successes and failures. It must be between 0 and 1, or the vendor exits at startup.
+
+The vendor also never responds to about 1 in 20 calls, though it still issues the quote, like a response lost in transit. quote-service gives up on that attempt after 3s and retries with the same `Idempotency-Key`, so it receives the original quote rather than a duplicate. Set `VENDOR_TIMEOUT_RATE=1` to make every attempt hang: after about 8s the UI shows "The quote provider timed out".
 
 All services fail fast at startup if `VENDOR_API_KEY` is missing: the process exits with a clear message rather than starting insecure. Both backends expose `GET /healthz`.
 
@@ -109,14 +111,15 @@ npm test -w packages/web
 ### What is tested, and why
 
 - **vendor-api / auth** - the security requirement: requests without a valid `api-key` header (the name the contract specifies, defined once as `API_KEY_HEADER` in the contract package) are rejected 401; wrong key is indistinguishable from missing key, and a key under any other header name is ignored.
-- **vendor-api / quote** - responses validate against the shared `QuoteResponseSchema`; invalid payloads (negative amount, bad risk band, string-typed number, malformed JSON) return 400; a repeated `Idempotency-Key` returns the original quote; the failure simulation knob (`failureRate: 1`) proves the random-error behaviour deterministically.
+- **vendor-api / quote** - responses validate against the shared `QuoteResponseSchema`; invalid payloads (negative amount, bad risk band, string-typed number, malformed JSON) return 400; a repeated `Idempotency-Key` returns the original quote; the simulation knobs (`failureRate: 1`, `timeoutRate: 1`) prove the random-error and never-responds behaviour deterministically.
 - **quote-service / routes** - with a stubbed `QuoteProvider` (no sockets): validation happens _before_ the vendor is called; typed vendor failures map to 504/503/502; internal error details never leak to the client while still being logged server-side; an error that merely _looks_ typed (e.g. a `DOMException` with a numeric `code`) still gets a clean 500 instead of crashing the handler; malformed JSON returns 400 and oversized bodies 413.
 - **quote-service / vendor-client** - against a real throwaway HTTP server: success, retry-then-succeed on a transient 500, exhaustion → `SERVICE_UNAVAILABLE`, 429 with `Retry-After`, hung vendor → `VENDOR_TIMEOUT`, a vendor that stalls mid-body → `VENDOR_TIMEOUT`, the overall deadline, the same idempotency key across retries, unreachable vendor, and non-retryable failures (401, malformed or non-JSON 200) failing fast.
+- **quote-service / end-to-end** - quote-service's app, `QuoteService` and `VendorQuoteClient` against the real mock vendor over HTTP: a successful quote, a rejected key → 502, persistent failures → 503, and a vendor that never responds → 504. The only suite where both sides are real, so it catches them drifting apart (e.g. on the API key header name).
 - **web / quoteApi** - with a stubbed `fetch`: success, backend envelopes passed through, unknown error codes and non-JSON error bodies normalised, invalid 200 bodies rejected, network failure, client-side timeout, caller cancellation.
 - **web / useQuote** - state transitions, and that the _newest_ request wins when responses arrive out of order (superseded requests are aborted, as is the in-flight one on unmount).
 - **web / QuoteForm** - numbers (not strings) are submitted; blank, over-limit and fractional inputs show the shared schema's messages per field; errors clear on edit; everything is disabled while loading.
 
-Randomness is made deterministic via injected config (`failureRate: 0/1`, fixed latency, fast backoff) rather than sleeps or flaky probabilistic assertions.
+Randomness is made deterministic via injected config (`failureRate` and `timeoutRate` of 0 or 1, fixed latency, fast backoff) rather than sleeps or flaky probabilistic assertions.
 
 ## Project structure
 

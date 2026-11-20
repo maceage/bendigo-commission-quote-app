@@ -20,7 +20,7 @@ async function post(body: string, headers: Record<string, string> = {}) {
   });
 }
 
-const reliable = () => createApp({ apiKey: VALID_KEY, failureRate: 0, latencyMs: [0, 0] });
+const reliable = () => createApp({ apiKey: VALID_KEY, failureRate: 0, timeoutRate: 0, latencyMs: [0, 0] });
 
 describe("POST /quotes", () => {
   it("returns a contract-valid quote for valid loan details", async () => {
@@ -63,6 +63,17 @@ describe("POST /quotes", () => {
     harness = await startApp(createApp({ apiKey: VALID_KEY, failureRate: 1, latencyMs: [0, 0] }));
     const res = await post(quotePayload());
     expect(res.status).toBe(500);
+  });
+
+  it("never responds when timeoutRate is 1", async () => {
+    harness = await startApp(createApp({ apiKey: VALID_KEY, failureRate: 0, timeoutRate: 1, latencyMs: [0, 0] }));
+    const request = fetch(`${harness.url}${QUOTE_ENDPOINT}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", [API_KEY_HEADER]: VALID_KEY },
+      body: quotePayload(),
+      signal: AbortSignal.timeout(200),
+    });
+    await expect(request).rejects.toMatchObject({ name: "TimeoutError" });
   });
 
   it("returns 400 for a malformed JSON body", async () => {

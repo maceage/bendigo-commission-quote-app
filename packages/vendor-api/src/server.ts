@@ -10,18 +10,29 @@ if (!API_KEY) {
   process.exit(1);
 }
 
-// Optional override so the error path can be demonstrated on demand:
-// quote-service retries, so at the default rate users rarely see a failure.
-const FAILURE_RATE_ENV = process.env.VENDOR_FAILURE_RATE;
-const FAILURE_RATE = FAILURE_RATE_ENV === undefined ? undefined : Number(FAILURE_RATE_ENV);
-
-if (FAILURE_RATE !== undefined && !(FAILURE_RATE >= 0 && FAILURE_RATE <= 1)) {
-  console.error(`VENDOR_FAILURE_RATE must be a number from 0 to 1 (got "${FAILURE_RATE_ENV}")`);
-  process.exit(1);
+/** Reads an optional 0-1 probability from the environment; exits if it is invalid. */
+function rateFromEnv(name: string): number | undefined {
+  const raw = process.env[name];
+  if (raw === undefined) return undefined;
+  const rate = Number(raw);
+  if (!(rate >= 0 && rate <= 1)) {
+    console.error(`${name} must be a number from 0 to 1 (got "${raw}")`);
+    process.exit(1);
+  }
+  return rate;
 }
 
-// Omit failureRate entirely when unset: an explicit undefined would
-// override the app's default.
-createApp({ apiKey: API_KEY, ...(FAILURE_RATE !== undefined && { failureRate: FAILURE_RATE }) }).listen(PORT, () => {
+// Optional overrides so the error paths can be demonstrated on demand:
+// quote-service retries, so at the default rates users rarely see a failure.
+const FAILURE_RATE = rateFromEnv("VENDOR_FAILURE_RATE");
+const TIMEOUT_RATE = rateFromEnv("VENDOR_TIMEOUT_RATE");
+
+// Omit unset rates entirely: an explicit undefined would override the
+// app's defaults.
+createApp({
+  apiKey: API_KEY,
+  ...(FAILURE_RATE !== undefined && { failureRate: FAILURE_RATE }),
+  ...(TIMEOUT_RATE !== undefined && { timeoutRate: TIMEOUT_RATE }),
+}).listen(PORT, () => {
   console.log(`[vendor-api] mock Commission Quote API listening on :${PORT}`);
 });

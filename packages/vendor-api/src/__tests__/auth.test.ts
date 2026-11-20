@@ -33,7 +33,7 @@ describe("api-key auth", () => {
   });
 
   it("admits requests with the correct API key", async () => {
-    harness = await startApp(createApp({ apiKey: VALID_KEY, failureRate: 0, latencyMs: [0, 0] }));
+    harness = await startApp(createApp({ apiKey: VALID_KEY, failureRate: 0, timeoutRate: 0, latencyMs: [0, 0] }));
     const res = await fetch(`${harness.url}${QUOTE_ENDPOINT}`, {
       method: "POST",
       headers: { "content-type": "application/json", [API_KEY_HEADER]: VALID_KEY },
@@ -44,7 +44,7 @@ describe("api-key auth", () => {
   });
 
   it("ignores a valid key sent under any other header name", async () => {
-    harness = await startApp(createApp({ apiKey: VALID_KEY, failureRate: 0, latencyMs: [0, 0] }));
+    harness = await startApp(createApp({ apiKey: VALID_KEY, failureRate: 0, timeoutRate: 0, latencyMs: [0, 0] }));
     const res = await fetch(`${harness.url}${QUOTE_ENDPOINT}`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": VALID_KEY },
