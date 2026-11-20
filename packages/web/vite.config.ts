@@ -1,6 +1,7 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { coverageOptions } from "../../vitest.shared";
 
 export default defineConfig({
   plugins: [react()],
@@ -18,5 +19,6 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./tests/setup.ts"],
+    coverage: coverageOptions(),
   },
 });

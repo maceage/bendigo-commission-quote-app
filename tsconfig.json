@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"]
+  },
+  // Root files only: the shared Vitest settings and scripts/. Each package has its own tsconfig.
+  "include": ["vitest.shared.ts", "scripts"]
+}

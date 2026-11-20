@@ -13,7 +13,8 @@ COPY packages/quote-service/package.json packages/quote-service/
 COPY packages/web/package.json packages/web/
 RUN npm ci
 
-COPY tsconfig.base.json ./
+# vite.config.ts (type-checked by the build) imports the shared Vitest settings.
+COPY tsconfig.base.json vitest.shared.ts ./
 COPY packages ./packages
 RUN npm run build -w packages/web
 
