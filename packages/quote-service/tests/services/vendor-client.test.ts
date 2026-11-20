@@ -169,6 +169,46 @@ describe("VendorQuoteClient", () => {
     expect(Date.now() - started).toBeGreaterThanOrEqual(190);
   });
 
+  /** A vendor that answers the first call with 429 and this Retry-After, then succeeds. */
+  async function retryAfterVendor(retryAfter: string) {
+    return startVendor((_req, res, call) => {
+      if (call === 1) {
+        res.writeHead(429, { "retry-after": retryAfter });
+        res.end();
+        return;
+      }
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(GOOD_RESPONSE);
+    });
+  }
+
+  it("honours Retry-After given as an HTTP date", async () => {
+    // HTTP dates have one-second precision, so ~2.5s ahead means a wait of 1.5-2.5s.
+    const { url, requests } = await retryAfterVendor(new Date(Date.now() + 2_500).toUTCString());
+    const started = Date.now();
+    await makeClient(url).generateQuote(REQUEST);
+    const waited = Date.now() - started;
+    expect(requests).toHaveLength(2);
+    expect(waited).toBeGreaterThanOrEqual(1_400);
+    expect(waited).toBeLessThan(3_000);
+  });
+
+  it("retries straight away when the Retry-After date is already past", async () => {
+    const { url, requests } = await retryAfterVendor(new Date(Date.now() - 60_000).toUTCString());
+    const started = Date.now();
+    await makeClient(url).generateQuote(REQUEST);
+    expect(requests).toHaveLength(2);
+    expect(Date.now() - started).toBeLessThan(500);
+  });
+
+  it("ignores an unreadable Retry-After and uses its own backoff", async () => {
+    const { url, requests } = await retryAfterVendor("whenever");
+    const started = Date.now();
+    await makeClient(url).generateQuote(REQUEST);
+    expect(requests).toHaveLength(2);
+    expect(Date.now() - started).toBeLessThan(500);
+  });
+
   it("times out and reports VENDOR_TIMEOUT when the vendor hangs", async () => {
     const { url } = await startVendor(statuses([200], 2_000));
     const err = await failureOf(makeClient(url).generateQuote(REQUEST));
