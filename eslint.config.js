@@ -15,7 +15,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["packages/quote-service/**", "packages/vendor-api/**", "packages/contract/**", "*.js"],
+    files: ["packages/quote-service/**", "packages/vendor-api/**", "packages/contract/**", "*.js", "scripts/**"],
     languageOptions: { globals: globals.node },
   },
   {

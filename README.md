@@ -138,6 +138,8 @@ npm run test:coverage
 npm run test:coverage -w packages/quote-service
 ```
 
+`npm run coverage:summary` then prints a per-package table. In GitHub Actions, each run's Summary page shows that table, and the HTML reports are attached to the run as the `coverage-reports` artifact (kept for 14 days). Both are produced even when the tests fail.
+
 ### What is tested, and why
 
 - **contract / money** - decimal strings to cents and back, including values floats can't hold exactly (e.g. 0.29); anything that isn't a plain amount with up to two decimal places (signs, exponents, commas, fractions of a cent, numbers too big to count exactly) is refused; commission in integer cents and basis points, rounded half up, checked against exact BigInt arithmetic for 20,000 amounts across the whole loan range.

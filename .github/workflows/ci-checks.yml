@@ -23,6 +23,20 @@ jobs:
       - run: npm run typecheck
       # The full test suite, failing if any package's src/ coverage drops below 90%.
       - run: npm run test:coverage
+      # A coverage table on the run's Summary page, and the HTML reports as
+      # an artifact. Even when the tests fail (that's when they help most),
+      # and from one Node version only, as the numbers don't differ.
+      - name: Coverage summary
+        if: ${{ !cancelled() && matrix.node == 24 }}
+        run: npm run coverage:summary
+      - name: Upload coverage reports
+        if: ${{ !cancelled() && matrix.node == 24 }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-reports
+          path: packages/*/coverage/
+          retention-days: 14
+          if-no-files-found: warn
       - run: npm run build
 
   DockerSmokeTest:
