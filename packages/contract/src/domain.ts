@@ -26,6 +26,14 @@ export const REQUEST_ID_HEADER = "x-request-id";
 export const MAX_LOAN_AMOUNT = 100_000_000;
 export const MAX_LOAN_TERM_MONTHS = 600;
 
+// Built from the limits, so a message can't drift from what's enforced.
+const MAX_LOAN_AMOUNT_TEXT = new Intl.NumberFormat("en-AU", {
+  style: "currency",
+  currency: "AUD",
+  maximumFractionDigits: 0,
+}).format(MAX_LOAN_AMOUNT);
+const MAX_LOAN_TERM_TEXT = `${MAX_LOAN_TERM_MONTHS} months (${MAX_LOAN_TERM_MONTHS / 12} years)`;
+
 /** The user-facing problem with a loan amount string, if there is one. */
 function loanAmountProblem(amount: string): string | undefined {
   if (amount.trim() === "") return "Enter a loan amount.";
@@ -33,7 +41,8 @@ function loanAmountProblem(amount: string): string | undefined {
   if (/\.\d{3,}$/.test(amount)) return "Loan amount can't include fractions of a cent.";
   const cents = parseCents(amount); // undefined from here on only if negative or huge
   if (amount.startsWith("-") || cents === 0) return "Loan amount must be greater than zero.";
-  if (cents === undefined || cents > MAX_LOAN_AMOUNT * 100) return "Loan amount must be $100,000,000 or less.";
+  if (cents === undefined || cents > MAX_LOAN_AMOUNT * 100)
+    return `Loan amount must be ${MAX_LOAN_AMOUNT_TEXT} or less.`;
   return undefined;
 }
 
@@ -54,7 +63,7 @@ export const QuoteRequestSchema = z.object(
       .number({ required_error: "Enter a loan term.", invalid_type_error: "Loan term must be a number." })
       .int("Loan term must be a whole number of months.")
       .positive("Loan term must be greater than zero.")
-      .max(MAX_LOAN_TERM_MONTHS, "Loan term must be 600 months (50 years) or fewer."),
+      .max(MAX_LOAN_TERM_MONTHS, `Loan term must be ${MAX_LOAN_TERM_TEXT} or fewer.`),
     riskBand: z.enum(RISK_BANDS, { message: "Choose a risk band: LOW, MEDIUM or HIGH." }),
   },
   // E.g. a request sent without a JSON content-type, which leaves no body.
