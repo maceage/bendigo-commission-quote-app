@@ -27,16 +27,17 @@ export class VendorClientError extends Error {
 
   /** The vendor's HTTP status, when it answered at all (for the logs). */
   readonly status?: number;
+  /** Server-side hint (ms) from a Retry-After header, if any. */
+  readonly retryAfterMs?: number;
 
   constructor(
     readonly code: VendorClientErrorCode,
     message: string,
-    /** Server-side hint (ms) from a Retry-After header, if any. */
-    readonly retryAfterMs?: number,
-    options?: { cause?: unknown; status?: number },
+    options: { cause?: unknown; status?: number; retryAfterMs?: number } = {},
   ) {
     super(message, options);
-    this.status = options?.status;
+    this.status = options.status;
+    this.retryAfterMs = options.retryAfterMs;
   }
 
   get retryable(): boolean {
@@ -114,9 +115,7 @@ export class VendorQuoteClient implements QuoteProvider {
         lastError =
           err instanceof VendorClientError
             ? err
-            : new VendorClientError("VENDOR_ERROR", "Unexpected error talking to the vendor.", undefined, {
-                cause: err,
-              });
+            : new VendorClientError("VENDOR_ERROR", "Unexpected error talking to the vendor.", { cause: err });
         log.warn(
           { attempt, durationMs: Date.now() - started, code: lastError.code, status: lastError.status, err: lastError },
           "vendor attempt failed",
@@ -160,27 +159,25 @@ export class VendorQuoteClient implements QuoteProvider {
       });
     } catch (err) {
       if (isTimeout(err)) {
-        throw new VendorClientError("VENDOR_TIMEOUT", "Vendor timed out.", undefined, { cause: err });
+        throw new VendorClientError("VENDOR_TIMEOUT", "Vendor timed out.", { cause: err });
       }
       // Connection refused, DNS failure, reset — transient, retry it.
-      throw new VendorClientError("SERVICE_UNAVAILABLE", "Vendor unreachable.", undefined, { cause: err });
+      throw new VendorClientError("SERVICE_UNAVAILABLE", "Vendor unreachable.", { cause: err });
     }
 
     if (response.status >= 500 || response.status === 429) {
       await response.body?.cancel().catch(() => {});
-      throw new VendorClientError(
-        "SERVICE_UNAVAILABLE",
-        "Vendor temporarily unavailable.",
-        parseRetryAfter(response.headers.get("retry-after")),
-        { status: response.status },
-      );
+      throw new VendorClientError("SERVICE_UNAVAILABLE", "Vendor temporarily unavailable.", {
+        status: response.status,
+        retryAfterMs: parseRetryAfter(response.headers.get("retry-after")),
+      });
     }
 
     // Auth/validation problems on OUR side of the fence are bugs or
     // misconfiguration — retrying won't help, fail fast.
     if (!response.ok) {
       await response.body?.cancel().catch(() => {});
-      throw new VendorClientError("VENDOR_ERROR", `Unexpected vendor response (HTTP ${response.status}).`, undefined, {
+      throw new VendorClientError("VENDOR_ERROR", `Unexpected vendor response (HTTP ${response.status}).`, {
         status: response.status,
       });
     }
@@ -190,12 +187,10 @@ export class VendorQuoteClient implements QuoteProvider {
       json = await response.json();
     } catch (err) {
       if (isTimeout(err)) {
-        throw new VendorClientError("VENDOR_TIMEOUT", "Vendor timed out.", undefined, { cause: err });
+        throw new VendorClientError("VENDOR_TIMEOUT", "Vendor timed out.", { cause: err });
       }
       // Not JSON, or the connection dropped mid-body.
-      throw new VendorClientError("VENDOR_ERROR", "Vendor returned an unreadable response.", undefined, {
-        cause: err,
-      });
+      throw new VendorClientError("VENDOR_ERROR", "Vendor returned an unreadable response.", { cause: err });
     }
 
     // The vendor is external — never trust the payload shape.
