@@ -15,11 +15,11 @@
   },
   "dependencies": {
     "@commission-quote/contract": "1.0.0",
-    "express": "^4.19.0",
+    "express": "^5.3.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
+    "@types/express": "^5.0.6",
     "tsx": "^4.11.0",
     "typescript": "^5.4.0",
     "vitest": "^3.0.0"

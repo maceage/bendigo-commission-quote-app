@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A take-home challenge submission (brief: `Code Challenge 28 Oct.pdf`): a web app for staff to request commission quotes for loans, plus a **mock** of a third-party vendor Commission Quote API. The codebase will be extended in a live pair-programming session, so changes should keep the existing structure easy to walk through.
 
-TypeScript npm-workspaces monorepo, Node 22.19+ (`.nvmrc`; jsdom's undici dependency needs it). Vitest everywhere, Express 4 backends, React 19 + Vite front-end, Zod for schemas.
+TypeScript npm-workspaces monorepo, Node 22.19+ (`.nvmrc`; jsdom's undici dependency needs it). Vitest everywhere, Express 5 backends, React 19 + Vite front-end, Zod for schemas.
 
 ## Commands
 
@@ -45,7 +45,7 @@ Request flow: browser → `POST /api/quotes` (Vite dev proxy) → **quote-servic
 - **`packages/vendor-api`** stands in for the external vendor. API-key auth middleware is mounted before all quote routes (constant-time compare; missing and wrong keys both return 401). It simulates latency, random 500s and random hangs (the quote is issued, but no response is sent); `createApp({ failureRate, timeoutRate, latencyMs })` makes these deterministic in tests, so tests expecting a reply must pass `timeoutRate: 0`. It honours `Idempotency-Key` with an in-memory FIFO cache.
 - **`packages/quote-service`** is our backend and the **only** holder of the vendor API key (injected once in `server.ts`, kept private in `VendorQuoteClient`). Layers: route (validate, then map errors) → `QuoteService` (deliberate pass-through seam for future caching/audit/rate-limiting) → `VendorQuoteClient`. The route depends on the `QuoteProvider` interface, so tests inject stubs. `__tests__/end-to-end.test.ts` is the one suite that runs quote-service against the real mock vendor (vendor-api exports `createApp` as `@commission-quote/vendor-api/app` for it), so it is what catches the two sides drifting apart.
   - `vendor-client.ts` holds all resilience logic: per-attempt timeout, an 8s overall deadline, bounded retry with jittered backoff honouring `Retry-After`, one idempotency key shared across retries, and validation of the vendor response. Every failure becomes a typed `VendorClientError` (`VENDOR_TIMEOUT` / `SERVICE_UNAVAILABLE` / `VENDOR_ERROR`); 4xx and malformed bodies are not retried.
-  - Unexpected errors go to `middleware/error-handler.ts` as 500 `INTERNAL_ERROR` with details logged only. Express 4 doesn't catch async rejections, so async handlers must call `next(err)` themselves.
+  - Unexpected errors go to `middleware/error-handler.ts` as 500 `INTERNAL_ERROR` with details logged only. Express 5 forwards errors thrown or rejected by a handler, so async routes just `throw`; only errors raised in a later callback (e.g. the vendor's `setTimeout`) still need `next(err)`.
 - **`packages/web`**: `api/quoteApi.ts` is the only network seam and turns every outcome (backend envelope, proxy HTML error page, network failure, 15s client timeout) into a `QuoteResult` union, so the UI renders exactly one error shape (`Alert`). `hooks/useQuote.ts` owns the idle/loading/success/error state and aborts superseded or unmounted requests so only the newest response renders. `QuoteForm` keeps inputs as strings and converts them to numbers at submit before running the shared schema.
 
 ## Conventions

@@ -151,7 +151,6 @@ Every design decision - the contract-package approach, API-key custody in the ba
 - **The mock's idempotency store is in memory** (last 1,000 keys) - fine for a mock; a real vendor would persist it.
 - **Money as floats**: totals are rounded to cents, but a real lending platform should use integer cents or a decimal type end-to-end.
 - **Observability**: structured logging and request IDs instead of `console.*`.
-- **Express 4**: async route errors are forwarded to the error handler by hand (`next(err)`); Express 5 does this automatically.
 
 ## Assumptions
 

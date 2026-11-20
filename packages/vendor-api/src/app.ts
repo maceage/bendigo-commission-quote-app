@@ -80,6 +80,8 @@ export function createApp(options: VendorApiOptions) {
 
         res.status(200).json(quote);
       } catch (err) {
+        // Forwarded by hand: Express 5 only catches errors thrown by the
+        // handler itself or its returned promise, not by a later callback.
         next(err);
       }
     });
