@@ -16,6 +16,7 @@ Run from the repo root. Copy `.env.example` to `.env` first; both backends need 
 npm install
 npm run dev            # vendor-api :4001, quote-service :4000, web :5173 (concurrently)
 npm test               # every package's Vitest suite
+npm run test:coverage  # the same with V8 coverage of src/ (HTML report in each package's coverage/)
 npm run check          # format:check + lint + typecheck + test (what CI runs, plus build)
 npm run build          # web: tsc + vite build; backends: esbuild bundle to dist/server.cjs
 npm run lint | typecheck | format | format:check

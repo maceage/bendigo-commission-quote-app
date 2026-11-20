@@ -8,6 +8,7 @@
     "build": "esbuild src/server.ts --bundle --platform=node --target=node22 --format=cjs --sourcemap --outfile=dist/server.cjs",
     "start": "node --enable-source-maps dist/server.cjs",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage --coverage.include=src/**",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

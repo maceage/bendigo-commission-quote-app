@@ -130,6 +130,13 @@ npm test -w packages/quote-service
 npm test -w packages/web
 ```
 
+For a coverage report (in the terminal, plus HTML in each package's `coverage/` folder):
+
+```bash
+npm run test:coverage
+npm run test:coverage -w packages/quote-service
+```
+
 ### What is tested, and why
 
 - **contract / money** - dollars to cents and back, including values floats can't hold exactly (e.g. 0.29); commission in integer cents and basis points, rounded half up, checked against exact BigInt arithmetic for 20,000 amounts across the whole loan range; inputs it can't compute exactly are refused; the whole-cents check.
