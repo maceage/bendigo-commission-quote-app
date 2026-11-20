@@ -11,7 +11,7 @@
     "build": "esbuild src/server.ts --bundle --platform=node --target=node22 --format=cjs --sourcemap --outfile=dist/server.cjs",
     "start": "node --enable-source-maps dist/server.cjs",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage --coverage.include=src/**",
+    "test:coverage": "vitest run --coverage --coverage.include=src/** --coverage.thresholds.statements=90 --coverage.thresholds.branches=90 --coverage.thresholds.functions=90 --coverage.thresholds.lines=90",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

@@ -130,7 +130,7 @@ npm test -w packages/quote-service
 npm test -w packages/web
 ```
 
-For a coverage report (in the terminal, plus HTML in each package's `coverage/` folder):
+For a coverage report (in the terminal, plus HTML in each package's `coverage/` folder). It fails if any package's statement, branch, function or line coverage of `src/` drops below 90%, and CI runs it in place of `npm test`:
 
 ```bash
 npm run test:coverage

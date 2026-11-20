@@ -21,7 +21,8 @@ jobs:
       - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm test
+      # The full test suite, failing if any package's src/ coverage drops below 90%.
+      - run: npm run test:coverage
       - run: npm run build
 
   DockerSmokeTest:

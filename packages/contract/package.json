@@ -14,7 +14,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage --coverage.include=src/**"
+    "test:coverage": "vitest run --coverage --coverage.include=src/** --coverage.exclude=src/index.ts --coverage.thresholds.statements=90 --coverage.thresholds.branches=90 --coverage.thresholds.functions=90 --coverage.thresholds.lines=90"
   },
   "devDependencies": {
     "vitest": "^3.2.7"
