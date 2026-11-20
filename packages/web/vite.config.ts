@@ -19,6 +19,8 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./tests/setup.ts"],
-    coverage: coverageOptions(),
+    // main.tsx only mounts <App /> in the browser (tests render App
+    // directly), like the backends' server.ts, so it's left out.
+    coverage: coverageOptions(["src/main.tsx"]),
   },
 });

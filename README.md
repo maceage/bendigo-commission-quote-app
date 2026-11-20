@@ -131,7 +131,7 @@ npm test -w packages/quote-service
 npm test -w packages/web
 ```
 
-For a coverage report (in the terminal, plus HTML in each package's `coverage/` folder). It fails if any package's statement, branch, function or line coverage of `src/` drops below 90%, and CI runs it in place of `npm test`. The backends' `server.ts` launchers and the contract's re-exporting `index.ts` are left out, since tests build the apps with `createApp` and never run those files:
+For a coverage report (in the terminal, plus HTML in each package's `coverage/` folder). It fails if any package's statement, branch, function or line coverage of `src/` drops below 90%, and CI runs it in place of `npm test`. The backends' `server.ts` launchers, the web app's `main.tsx` (which only mounts `<App />` in the browser) and the contract's re-exporting `index.ts` are left out, since tests build the apps with `createApp` or render `App` directly and never run those files:
 
 ```bash
 npm run test:coverage
