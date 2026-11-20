@@ -53,4 +53,4 @@ Request flow: browser → `POST /api/quotes` (Vite dev proxy) → **quote-servic
 - Apps are built by `createApp(...)` in `app.ts` without listening; `server.ts` is a thin launcher. Tests hit the app in-process or on an ephemeral port (`__tests__/test-server.ts`), never a fixed port.
 - Randomness and timing are made deterministic through injected config (failure rate 0/1, fixed latency, fast backoff), not sleeps or probabilistic assertions.
 - `commissionRate` is a 0–1 fraction in the contract, formatted as a percentage only in `QuoteResult.tsx`; currency is AUD.
-- The README has an "AI usage" section required by the brief; keep it accurate when AI-assisted changes land. `claude_changes.md` records an earlier Claude Code review session.
+- The README has an "AI usage" section required by the brief; keep it accurate when AI-assisted changes land.
