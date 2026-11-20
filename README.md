@@ -131,7 +131,7 @@ npm test -w packages/quote-service
 npm test -w packages/web
 ```
 
-For a coverage report (in the terminal, plus HTML in each package's `coverage/` folder). It fails if any package's statement, branch, function or line coverage of `src/` drops below 90%, and CI runs it in place of `npm test`. The backends' `server.ts` launchers, the web app's `main.tsx` (which only mounts `<App />` in the browser) and the contract's re-exporting `index.ts` are left out, since tests build the apps with `createApp` or render `App` directly and never run those files:
+For a coverage report (in the terminal, plus HTML in each package's `coverage/` folder). It fails if any package's statement, branch, function or line coverage of `src/` drops below 95%, and CI runs it in place of `npm test`. Every package is currently at 100% on all four. The backends' `server.ts` launchers, the web app's `main.tsx` (which only mounts `<App />` in the browser) and the contract's re-exporting `index.ts` are left out, since tests build the apps with `createApp` or render `App` directly and never run those files:
 
 ```bash
 npm run test:coverage
@@ -216,6 +216,8 @@ This challenge was completed with AI assistance, used in the following ways:
   - a few smaller clean-ups (limit messages built from the limits, flushing the idempotency file to disk).
 
   Staff sign-in it left alone, as a known trade-off (below).
+
+- **Coverage to 100% (Claude Code)**: I asked Claude Code how to raise coverage. It listed the six gaps, and I had it close each as a separate commit: leaving the web app's `main.tsx` launcher out of coverage like the backends' `server.ts`, testing the production log level, the vendor's request ID handling, the vendor client's and `useQuote`'s safety nets, and the risk band's field error, and removing one fallback message that could never be shown. Every package is now at 100% on all four metrics, and the minimum went from 90% to 95%, set once in `vitest.shared.ts`.
 
 [`CLAUDE.md`](CLAUDE.md) holds the project guidance Claude Code works from.
 

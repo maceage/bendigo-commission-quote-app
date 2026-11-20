@@ -5,8 +5,12 @@
 
 import type { CoverageOptions } from "vitest/node";
 
-/** Minimum coverage of src/, in percent, for statements, branches, functions and lines alike. */
-export const COVERAGE_THRESHOLD = 90;
+/**
+ * Minimum coverage of src/, in percent, for statements, branches, functions
+ * and lines alike. Every package is at 100%; the minimum stays below that so
+ * a defensive branch doesn't need a contrived test before it can be merged.
+ */
+export const COVERAGE_THRESHOLD = 95;
 
 /** Coverage of src/, except `exclude`: files the tests never run (thin launchers, re-exports). */
 export function coverageOptions(exclude: string[] = []): CoverageOptions {
