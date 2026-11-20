@@ -213,6 +213,14 @@ describe("idempotency store", () => {
     expect(await quoteFor("a")).not.toBe(a);
   });
 
+  it("issues a new quote for a key whose time is up", async () => {
+    harness = await startApp(
+      createApp({ apiKey: VALID_KEY, failureRate: 0, timeoutRate: 0, latencyMs: [0, 0], idempotencyTtlMs: 0 }),
+    );
+    const first = await quoteFor("expires-at-once");
+    expect(await quoteFor("expires-at-once")).not.toBe(first);
+  });
+
   it("returns the original quote after a restart when given a file", async () => {
     const dir = mkdtempSync(join(tmpdir(), "vendor-"));
     const withFile = () =>

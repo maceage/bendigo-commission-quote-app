@@ -29,6 +29,8 @@ export interface VendorApiOptions {
   idempotencyCacheSize?: number;
   /** File that keeps issued quotes across restarts; in memory only if absent. */
   idempotencyFile?: string;
+  /** How long an idempotency key lasts, in ms (default 24 hours); after that it's new. */
+  idempotencyTtlMs?: number;
   logger?: Logger;
 }
 
@@ -41,6 +43,8 @@ const DEFAULTS = {
   latencyMs: [50, 400] as [number, number],
   random: Math.random,
   idempotencyCacheSize: 1_000,
+  // A day: long enough for any retry, as with real vendors' keys.
+  idempotencyTtlMs: 24 * 60 * 60 * 1000,
 };
 
 export function createApp(options: VendorApiOptions) {
@@ -58,7 +62,11 @@ export function createApp(options: VendorApiOptions) {
   );
 
   // Quotes already issued, by Idempotency-Key.
-  const issued = new IdempotencyStore(cfg.idempotencyCacheSize, cfg.idempotencyFile);
+  const issued = new IdempotencyStore({
+    capacity: cfg.idempotencyCacheSize,
+    ttlMs: cfg.idempotencyTtlMs,
+    file: cfg.idempotencyFile,
+  });
 
   app.get("/healthz", (_req, res) => {
     res.json({ status: "ok" });

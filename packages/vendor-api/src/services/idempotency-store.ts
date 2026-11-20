@@ -2,10 +2,10 @@
 // original quote back instead of a new one. Each quote is kept with a
 // fingerprint of the request that produced it, so a key reused for a
 // different loan can be refused rather than answered with the wrong
-// quote. Bounded, so once full the
-// oldest key is forgotten. Given a file, it also survives restarts, as a
-// real vendor's store would: the file is read once at startup and
-// rewritten after each new quote.
+// quote. Bounded twice over: a key expires after a while (24 hours in
+// the app), and once full the oldest key is forgotten. Given a file, it
+// also survives restarts, as a real vendor's store would: the file is
+// read once at startup and rewritten after each new quote.
 
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
@@ -16,8 +16,23 @@ import { QuoteResponseSchema, parseCents, type QuoteRequest } from "@commission-
 const IssuedQuoteSchema = z.object({ fingerprint: z.string(), quote: QuoteResponseSchema });
 export type IssuedQuote = z.infer<typeof IssuedQuoteSchema>;
 
-/** The file's format: [key, issued quote] pairs, oldest first. */
-const StoredQuotesSchema = z.array(z.tuple([z.string(), IssuedQuoteSchema]));
+/** An issued quote as stored: with when it was issued (ms since the epoch), for expiry. */
+const StoredQuoteSchema = IssuedQuoteSchema.extend({ issuedAt: z.number() });
+type StoredQuote = z.infer<typeof StoredQuoteSchema>;
+
+/** The file's format: [key, stored quote] pairs, oldest first. */
+const StoredQuotesSchema = z.array(z.tuple([z.string(), StoredQuoteSchema]));
+
+export interface IdempotencyStoreOptions {
+  /** How many keys to remember; once full, the oldest is forgotten. */
+  capacity: number;
+  /** How long a key lasts, in ms; after that it's treated as new. */
+  ttlMs: number;
+  /** Keeps the quotes across restarts; in memory only if absent. */
+  file?: string;
+  /** The clock, in ms since the epoch; tests inject one to move time on. */
+  now?: () => number;
+}
 
 /**
  * Identifies a request by what it asks for, so "250000" and "250000.00"
@@ -30,37 +45,54 @@ export function fingerprint(request: QuoteRequest): string {
 
 export class IdempotencyStore {
   // Map preserves insertion order, which gives us cheap FIFO eviction.
-  private readonly issued = new Map<string, IssuedQuote>();
+  // Every key lives equally long, so it is also expiry order: expired
+  // keys are always at the front.
+  private readonly issued = new Map<string, StoredQuote>();
+  private readonly now: () => number;
 
-  constructor(
-    private readonly capacity: number,
-    private readonly file?: string,
-  ) {
-    if (file !== undefined) {
-      mkdirSync(dirname(file), { recursive: true });
-      for (const [key, issued] of readQuotes(file)) this.remember(key, issued);
+  constructor(private readonly options: IdempotencyStoreOptions) {
+    this.now = options.now ?? Date.now;
+    if (options.file !== undefined) {
+      mkdirSync(dirname(options.file), { recursive: true });
+      for (const [key, stored] of readQuotes(options.file)) this.remember(key, stored);
+      this.dropExpired();
     }
   }
 
   get(key: string): IssuedQuote | undefined {
-    return this.issued.get(key);
+    const stored = this.issued.get(key);
+    if (stored === undefined || this.isExpired(stored)) return undefined;
+    return { fingerprint: stored.fingerprint, quote: stored.quote };
   }
 
   set(key: string, issued: IssuedQuote): void {
-    this.remember(key, issued);
-    if (this.file !== undefined) writeQuotes(this.file, [...this.issued]);
+    // Also clears this key if it had expired, so it's re-added at the back.
+    this.dropExpired();
+    this.remember(key, { ...issued, issuedAt: this.now() });
+    if (this.options.file !== undefined) writeQuotes(this.options.file, [...this.issued]);
   }
 
-  private remember(key: string, issued: IssuedQuote): void {
-    this.issued.set(key, issued);
-    if (this.issued.size > this.capacity) {
+  private remember(key: string, stored: StoredQuote): void {
+    this.issued.set(key, stored);
+    if (this.issued.size > this.options.capacity) {
       this.issued.delete(this.issued.keys().next().value!);
+    }
+  }
+
+  private isExpired(stored: StoredQuote): boolean {
+    return this.now() - stored.issuedAt >= this.options.ttlMs;
+  }
+
+  private dropExpired(): void {
+    for (const [key, stored] of this.issued) {
+      if (!this.isExpired(stored)) break;
+      this.issued.delete(key);
     }
   }
 }
 
 /** The stored quotes; none if the file doesn't exist yet. Throws if it can't be trusted. */
-function readQuotes(file: string): [string, IssuedQuote][] {
+function readQuotes(file: string): [string, StoredQuote][] {
   let text: string;
   try {
     text = readFileSync(file, "utf8");
@@ -81,7 +113,7 @@ function readQuotes(file: string): [string, IssuedQuote][] {
 }
 
 /** Written to a temporary file and renamed into place, so a crash mid-write can't leave half a file. */
-function writeQuotes(file: string, quotes: [string, IssuedQuote][]): void {
+function writeQuotes(file: string, quotes: [string, StoredQuote][]): void {
   const temp = `${file}.tmp`;
   writeFileSync(temp, JSON.stringify(quotes));
   renameSync(temp, file);
