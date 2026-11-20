@@ -2,10 +2,11 @@
 
 import type { Request, Response, NextFunction } from "express";
 import { timingSafeEqual } from "node:crypto";
+import { API_KEY_HEADER } from "@commission-quote/contract";
 
 export function apiKeyAuth(expectedKey: string) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    const provided = req.header("x-api-key");
+    const provided = req.header(API_KEY_HEADER);
 
     // Compare in constant time to avoid leaking key length/content
     // via timing differences. Buffers must be equal length to compare.

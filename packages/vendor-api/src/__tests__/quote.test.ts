@@ -2,7 +2,7 @@
 // failureRate 0/1 makes the "random" simulation deterministic.
 
 import { describe, it, expect, afterEach } from "vitest";
-import { QuoteResponseSchema, type QuoteResponse } from "@commission-quote/contract";
+import { API_KEY_HEADER, QuoteResponseSchema, type QuoteResponse } from "@commission-quote/contract";
 import { createApp } from "../app";
 import { startApp, VALID_KEY, QUOTE_ENDPOINT, quotePayload } from "./test-server";
 
@@ -15,7 +15,7 @@ afterEach(async () => {
 async function post(body: string, headers: Record<string, string> = {}) {
   return fetch(`${harness!.url}${QUOTE_ENDPOINT}`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-api-key": VALID_KEY, ...headers },
+    headers: { "content-type": "application/json", [API_KEY_HEADER]: VALID_KEY, ...headers },
     body,
   });
 }

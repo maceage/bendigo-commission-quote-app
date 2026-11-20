@@ -9,7 +9,7 @@
 //      the app (and the UI) can reason about
 
 import { randomUUID } from "node:crypto";
-import { QuoteResponseSchema, type QuoteRequest, type QuoteResponse } from "@commission-quote/contract";
+import { API_KEY_HEADER, QuoteResponseSchema, type QuoteRequest, type QuoteResponse } from "@commission-quote/contract";
 import type { QuoteProvider } from "./quote-provider";
 
 export type VendorClientErrorCode = "VENDOR_TIMEOUT" | "SERVICE_UNAVAILABLE" | "VENDOR_ERROR";
@@ -117,7 +117,7 @@ export class VendorQuoteClient implements QuoteProvider {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-api-key": this.cfg.apiKey,
+          [API_KEY_HEADER]: this.cfg.apiKey,
           "idempotency-key": idempotencyKey,
         },
         body: JSON.stringify(request),

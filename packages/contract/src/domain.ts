@@ -10,6 +10,12 @@ import { z } from "zod";
 export const RISK_BANDS = ["LOW", "MEDIUM", "HIGH"] as const;
 export type RiskBand = (typeof RISK_BANDS)[number];
 
+/**
+ * Header carrying the vendor API key, as named in the agreed contract.
+ * Defined once so the mock vendor and our client can't drift apart.
+ */
+export const API_KEY_HEADER = "api-key";
+
 export const MAX_LOAN_AMOUNT = 100_000_000;
 export const MAX_LOAN_TERM_MONTHS = 600;
 

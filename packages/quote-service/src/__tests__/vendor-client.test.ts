@@ -4,6 +4,7 @@
 
 import { describe, it, expect, afterEach } from "vitest";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { API_KEY_HEADER } from "@commission-quote/contract";
 import { VendorClientError, VendorQuoteClient, type VendorClientConfig } from "../services/vendor-client";
 
 const KEY = "test-vendor-key-123";
@@ -31,7 +32,7 @@ async function startVendor(handler: Handler): Promise<{ url: string; requests: I
     req.resume();
     req.on("end", () => {
       requests.push(req);
-      if (req.headers["x-api-key"] !== KEY) {
+      if (req.headers[API_KEY_HEADER] !== KEY) {
         res.writeHead(401, { "content-type": "application/json" });
         res.end(JSON.stringify({ error: "Unauthorized." }));
         return;

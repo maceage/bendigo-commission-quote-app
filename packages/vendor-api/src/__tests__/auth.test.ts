@@ -1,6 +1,7 @@
 // THE security requirement from the brief: no valid key, no service.
 
 import { describe, it, expect, afterEach } from "vitest";
+import { API_KEY_HEADER } from "@commission-quote/contract";
 import { createApp } from "../app";
 import { startApp, VALID_KEY, QUOTE_ENDPOINT, quotePayload } from "./test-server";
 
@@ -25,7 +26,7 @@ describe("api-key auth", () => {
     harness = await startApp(createApp({ apiKey: VALID_KEY }));
     const res = await fetch(`${harness.url}${QUOTE_ENDPOINT}`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": "not-the-key" },
+      headers: { "content-type": "application/json", [API_KEY_HEADER]: "not-the-key" },
       body: quotePayload(),
     });
     expect(res.status).toBe(401);
@@ -35,10 +36,20 @@ describe("api-key auth", () => {
     harness = await startApp(createApp({ apiKey: VALID_KEY, failureRate: 0, latencyMs: [0, 0] }));
     const res = await fetch(`${harness.url}${QUOTE_ENDPOINT}`, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": VALID_KEY },
+      headers: { "content-type": "application/json", [API_KEY_HEADER]: VALID_KEY },
       body: quotePayload(),
     });
     // 401 = auth blocked us; anything else means auth waved us through.
     expect(res.status).not.toBe(401);
+  });
+
+  it("ignores a valid key sent under any other header name", async () => {
+    harness = await startApp(createApp({ apiKey: VALID_KEY, failureRate: 0, latencyMs: [0, 0] }));
+    const res = await fetch(`${harness.url}${QUOTE_ENDPOINT}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": VALID_KEY },
+      body: quotePayload(),
+    });
+    expect(res.status).toBe(401);
   });
 });

@@ -8,7 +8,7 @@ A take-home submission: a web application for staff to generate commission quote
 ┌──────────────┐  POST /api/quotes   ┌────────────────┐  POST /quotes    ┌───────────────┐
 │  Browser     │ ──────────────────► │ quote-service  │ ───────────────► │ vendor-api    │
 │  (React)     │ ◄────────────────── │ (Express, :4000│ ◄─────────────── │ (Express,:4001│
-│  :5173       │   JSON envelope     │  owns API key, │  x-api-key hdr   │  mock, random │
+│  :5173       │   JSON envelope     │  owns API key, │  api-key header  │  mock, random │
 └──────────────┘                     │  retry+timeout │                  │  failures     │
         ▲                            └───────┬────────┘                  └───────────────┘
         │ same-origin /api                    │
@@ -108,7 +108,7 @@ npm test -w packages/web
 
 ### What is tested, and why
 
-- **vendor-api / auth** - the security requirement: requests without a valid `x-api-key` are rejected 401; wrong key is indistinguishable from missing key.
+- **vendor-api / auth** - the security requirement: requests without a valid `api-key` header (the name the contract specifies, defined once as `API_KEY_HEADER` in the contract package) are rejected 401; wrong key is indistinguishable from missing key, and a key under any other header name is ignored.
 - **vendor-api / quote** - responses validate against the shared `QuoteResponseSchema`; invalid payloads (negative amount, bad risk band, string-typed number, malformed JSON) return 400; a repeated `Idempotency-Key` returns the original quote; the failure simulation knob (`failureRate: 1`) proves the random-error behaviour deterministically.
 - **quote-service / routes** - with a stubbed `QuoteProvider` (no sockets): validation happens _before_ the vendor is called; typed vendor failures map to 504/503/502; internal error details never leak to the client while still being logged server-side; an error that merely _looks_ typed (e.g. a `DOMException` with a numeric `code`) still gets a clean 500 instead of crashing the handler; malformed JSON returns 400 and oversized bodies 413.
 - **quote-service / vendor-client** - against a real throwaway HTTP server: success, retry-then-succeed on a transient 500, exhaustion → `SERVICE_UNAVAILABLE`, 429 with `Retry-After`, hung vendor → `VENDOR_TIMEOUT`, a vendor that stalls mid-body → `VENDOR_TIMEOUT`, the overall deadline, the same idempotency key across retries, unreachable vendor, and non-retryable failures (401, malformed or non-JSON 200) failing fast.
