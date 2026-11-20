@@ -46,4 +46,10 @@ describe("loadConfig", () => {
     );
     expect(() => loadConfig({ ...KEY, VENDOR_TIMEOUT_RATE: value })).toThrow(ConfigError);
   });
+  it.each(["abc", "0", "65536", "40.5", "-1"])("rejects an invalid port (%s)", (value) => {
+    expect(() => loadConfig({ ...KEY, PORT: value })).toThrow(ConfigError);
+    expect(() => loadConfig({ ...KEY, PORT: value })).toThrow(
+      `PORT must be a whole number from 1 to 65535 (got "${value}")`,
+    );
+  });
 });

@@ -27,6 +27,17 @@ function rateFromEnv(env: NodeJS.ProcessEnv, name: string): number | undefined {
   return rate;
 }
 
+/** An optional TCP port, else the default. Empty counts as unset, since Compose passes unset settings as "". */
+function portFromEnv(env: NodeJS.ProcessEnv, fallback: number): number {
+  const raw = env.PORT;
+  if (raw === undefined || raw === "") return fallback;
+  const port = Number(raw);
+  if (!(Number.isInteger(port) && port >= 1 && port <= 65535)) {
+    throw new ConfigError(`PORT must be a whole number from 1 to 65535 (got "${raw}")`);
+  }
+  return port;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): VendorConfig {
   const apiKey = env.VENDOR_API_KEY;
   if (!apiKey) throw new ConfigError("VENDOR_API_KEY must be set (see .env.example)");
@@ -38,7 +49,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): VendorConfig {
   const idempotencyFile = env.VENDOR_IDEMPOTENCY_FILE || undefined;
 
   return {
-    port: Number(env.PORT || 4001),
+    port: portFromEnv(env, 4001),
     apiKey,
     ...(failureRate !== undefined && { failureRate }),
     ...(timeoutRate !== undefined && { timeoutRate }),
