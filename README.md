@@ -132,6 +132,8 @@ npm test -w packages/web
 
 ### What is tested, and why
 
+- **contract / money** - dollars to cents and back, including values floats can't hold exactly (e.g. 0.29); commission in integer cents and basis points, rounded half up, checked against exact BigInt arithmetic for 20,000 amounts across the whole loan range; inputs it can't compute exactly are refused; the whole-cents check.
+- **vendor-api / quote engine** - commission for amounts the old float maths rounded a half-cent down (e.g. $250,011.75 at 2% is $5,000.24, not $5,000.23), plus ordinary and maximum-size loans.
 - **vendor-api / auth** - the security requirement: requests without a valid `api-key` header (the name the contract specifies, defined once as `API_KEY_HEADER` in the contract package) are rejected 401; wrong key is indistinguishable from missing key, and a key under any other header name is ignored. The key is also checked never to appear in the logs.
 - **vendor-api / quote** - responses validate against the shared `QuoteResponseSchema`; invalid payloads (negative amount, bad risk band, string-typed number, malformed JSON) return 400; a repeated `Idempotency-Key` returns the original quote; the simulation knobs (`failureRate: 1`, `timeoutRate: 1`) prove the random-error and never-responds behaviour deterministically.
 - **quote-service / routes** - with a stubbed `QuoteProvider` (no sockets): validation happens _before_ the vendor is called; typed vendor failures map to 504/503/502; internal error details never leak to the client while still being logged server-side under the request ID the client was given; every response gets a request ID (a well-formed incoming one is reused, anything else replaced); an error that merely _looks_ typed (e.g. a `DOMException` with a numeric `code`) still gets a clean 500 instead of crashing the handler; malformed JSON returns 400 and oversized bodies 413.
@@ -172,12 +174,13 @@ Every design decision - the contract-package approach, API-key custody in the ba
 - **Docker, but no deployment**: the Compose setup runs the whole app locally and is smoke-tested in CI, but images aren't published to a registry, there's no HTTPS (nginx listens on plain HTTP), and nothing targets a real platform (e.g. Kubernetes or a cloud container service). Base images use version tags rather than pinned digests.
 - **`QuoteService` is currently a pass-through** - wired in, and deliberately kept as a seam for caching, rate limiting, or auditing when the app grows.
 - **The mock's idempotency store is in memory** (last 1,000 keys) - fine for a mock; a real vendor would persist it.
-- **Money as floats**: totals are rounded to cents, but a real lending platform should use integer cents or a decimal type end-to-end.
+- **Money on the wire is still JSON numbers**: commission maths runs in integer cents and basis points (`packages/contract/src/money.ts`), but the vendor contract sends amounts as decimal numbers, so they are converted at the edges. If the real vendor's contract allowed it, integer cents or decimal strings on the wire would remove that conversion.
 - **Logs only, no metrics or tracing**: request IDs link the two services' logs, but there are no metrics (e.g. vendor error rate, latency) or distributed tracing such as OpenTelemetry.
 
 ## Assumptions
 
 - Commission rates by risk band (LOW 2%, MEDIUM 3.5%, HIGH 6%) are illustrative - the vendor is a mock.
+- The mock rounds commission half up to the nearest cent (e.g. $5,000.235 becomes $5,000.24). The brief doesn't specify a rounding rule; a real vendor might use banker's rounding instead.
 - `commissionRate` is a fraction (0–1), rendered as a percentage in the UI; this is specified in the shared contract to avoid the classic fraction-vs-percent ambiguity. The brief doesn't say which the vendor sends, so this needs confirming with them: a vendor sending percentages (e.g. `3.5`) would have every quote rejected as `VENDOR_ERROR`.
 - `quoteId` is treated as an opaque, non-empty string. The brief doesn't specify a format, so the contract doesn't require one (the mock happens to issue UUIDs).
 - Loan amount/term bounds (max 600 months, etc.) are sensible defaults for demonstration, not business rules.

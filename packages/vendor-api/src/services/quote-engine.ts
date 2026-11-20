@@ -2,30 +2,40 @@
 // Kept free of Express concerns so it can be unit-tested directly.
 
 import { randomUUID } from "node:crypto";
-import { QuoteRequestSchema, type QuoteRequest, type QuoteResponse, type RiskBand } from "@commission-quote/contract";
+import {
+  BASIS_POINTS_PER_UNIT,
+  QuoteRequestSchema,
+  applyBasisPoints,
+  fromCents,
+  toCents,
+  type QuoteRequest,
+  type QuoteResponse,
+  type RiskBand,
+} from "@commission-quote/contract";
 
 /**
- * Risk band -> commission rate. Plausible-looking numbers; the point
- * is that higher risk earns higher commission.
+ * Risk band -> commission rate in basis points (350 = 3.5%), so the
+ * commission is computed in integers. Plausible-looking numbers; the
+ * point is that higher risk earns higher commission.
  */
-const COMMISSION_RATES: Record<RiskBand, number> = {
-  LOW: 0.02,
-  MEDIUM: 0.035,
-  HIGH: 0.06,
+const COMMISSION_BASIS_POINTS: Record<RiskBand, number> = {
+  LOW: 200,
+  MEDIUM: 350,
+  HIGH: 600,
 };
 
 export function generateQuote(payload: unknown): QuoteResponse {
   // Guard the boundary: even a trusted caller's serialization can lie.
   const request: QuoteRequest = QuoteRequestSchema.parse(payload);
 
-  const commissionRate = COMMISSION_RATES[request.riskBand];
-  // Round to cents. A production system would use integer cents or a
-  // decimal type end-to-end rather than binary floats.
-  const totalCommission = Math.round(request.loanAmount * commissionRate * 100) / 100;
+  const basisPoints = COMMISSION_BASIS_POINTS[request.riskBand];
+  // Integer cents x basis points, rounded half up to the cent. Only the
+  // JSON response goes back to decimal dollars.
+  const commissionCents = applyBasisPoints(toCents(request.loanAmount), basisPoints);
 
   return {
     quoteId: randomUUID(),
-    commissionRate,
-    totalCommission,
+    commissionRate: basisPoints / BASIS_POINTS_PER_UNIT,
+    totalCommission: fromCents(commissionCents),
   };
 }

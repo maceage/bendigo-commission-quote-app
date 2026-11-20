@@ -3,6 +3,7 @@
 // Commission Quote API.
 
 import { z } from "zod";
+import { hasWholeCents } from "./money";
 
 /**
  * Risk bands accepted by the vendor Commission Quote API.
@@ -24,17 +25,6 @@ export const REQUEST_ID_HEADER = "x-request-id";
 
 export const MAX_LOAN_AMOUNT = 100_000_000;
 export const MAX_LOAN_TERM_MONTHS = 600;
-
-/**
- * True when the amount is a whole number of cents. Binary floats can't
- * hold most cent values exactly (0.29 * 100 = 28.999999999999996), so
- * allow a few ULPs of error rather than requiring an exact integer.
- * (Zod's multipleOf(0.01) accepts 0.0000001, so it isn't enough.)
- */
-function hasWholeCents(amount: number): boolean {
-  const cents = amount * 100;
-  return Math.abs(cents - Math.round(cents)) <= 4 * Number.EPSILON * Math.max(1, Math.abs(cents));
-}
 
 /**
  * Request payload: the loan details sent to the Commission Quote API.
