@@ -144,3 +144,36 @@ describe("error responses and health check", () => {
     expect(lines.join("")).not.toContain("/healthz");
   });
 });
+
+describe("idempotency store", () => {
+  const small = () =>
+    createApp({ apiKey: VALID_KEY, failureRate: 0, timeoutRate: 0, latencyMs: [0, 0], idempotencyCacheSize: 2 });
+
+  async function quoteFor(key: string): Promise<string> {
+    const res = await post(quotePayload(), { "idempotency-key": key });
+    return ((await res.json()) as QuoteResponse).quoteId;
+  }
+
+  it("forgets the oldest key once full, and keeps the rest", async () => {
+    harness = await startApp(small());
+    const a = await quoteFor("a");
+    const b = await quoteFor("b");
+    const c = await quoteFor("c"); // third key in a store of two: "a" is dropped
+
+    // Check the kept keys first: replaying a forgotten key issues a new
+    // quote, which would itself push another key out.
+    expect(await quoteFor("b")).toBe(b);
+    expect(await quoteFor("c")).toBe(c);
+    expect(await quoteFor("a")).not.toBe(a);
+  });
+
+  it("drops keys in the order they were issued, even if one was just replayed", async () => {
+    harness = await startApp(small());
+    const a = await quoteFor("a");
+    await quoteFor("b");
+    expect(await quoteFor("a")).toBe(a); // a replay doesn't move "a" to the back
+    await quoteFor("c");
+
+    expect(await quoteFor("a")).not.toBe(a);
+  });
+});

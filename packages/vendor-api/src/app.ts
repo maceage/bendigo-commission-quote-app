@@ -24,6 +24,8 @@ export interface VendorApiOptions {
    * outcomes, e.g. "hang, then respond".
    */
   random?: () => number;
+  /** How many idempotency keys the mock remembers (oldest evicted first). */
+  idempotencyCacheSize?: number;
   logger?: Logger;
 }
 
@@ -35,10 +37,8 @@ const DEFAULTS = {
   timeoutRate: 0.05,
   latencyMs: [50, 400] as [number, number],
   random: Math.random,
+  idempotencyCacheSize: 1_000,
 };
-
-/** How many idempotency keys the mock remembers (oldest evicted first). */
-const IDEMPOTENCY_CACHE_SIZE = 1_000;
 
 export function createApp(options: VendorApiOptions) {
   const cfg = { ...DEFAULTS, ...options };
@@ -86,7 +86,7 @@ export function createApp(options: VendorApiOptions) {
           quote = generateQuote(req.body);
           if (key !== undefined) {
             issued.set(key, quote);
-            if (issued.size > IDEMPOTENCY_CACHE_SIZE) {
+            if (issued.size > cfg.idempotencyCacheSize) {
               issued.delete(issued.keys().next().value!);
             }
           }
