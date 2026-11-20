@@ -2,7 +2,7 @@
 // pretending to be the vendor. Exercises timeout and retry paths
 // with small, fast values injected via config.
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { API_KEY_HEADER, REQUEST_ID_HEADER } from "@commission-quote/contract";
 import { VendorClientError, VendorQuoteClient, type VendorClientConfig } from "../../src/services/vendor-client";
@@ -22,6 +22,7 @@ afterEach(async () => {
   server?.closeAllConnections();
   await new Promise<void>((resolve) => (server ? server.close(() => resolve()) : resolve()));
   server = undefined;
+  vi.restoreAllMocks();
 });
 
 type Handler = (req: IncomingMessage, res: ServerResponse, call: number) => void;
@@ -238,6 +239,13 @@ describe("VendorQuoteClient", () => {
     expect(requests).toHaveLength(1);
   });
 
+  it("reports VENDOR_TIMEOUT without calling the vendor when the deadline has already passed", async () => {
+    const { url, requests } = await startVendor(statuses([200]));
+    const err = await failureOf(makeClient(url, { totalTimeoutMs: 0 }).generateQuote(REQUEST));
+    expect(err.code).toBe("VENDOR_TIMEOUT");
+    expect(requests).toHaveLength(0);
+  });
+
   it("does NOT retry a malformed 200 response (fails fast)", async () => {
     const { url, requests } = await startVendor((_req, res) => {
       res.writeHead(200, { "content-type": "application/json" });
@@ -262,6 +270,19 @@ describe("VendorQuoteClient", () => {
     const err = await failureOf(makeClient(url, { apiKey: "wrong" }).generateQuote(REQUEST));
     expect(err.code).toBe("VENDOR_ERROR");
     expect(requests).toHaveLength(1);
+  });
+
+  it("turns a bug in an attempt into a user-safe VENDOR_ERROR, without retrying", async () => {
+    // Every failure attemptQuote expects is already a VendorClientError, so
+    // only a bug could throw anything else: stand one in for it.
+    const bug = new TypeError("Cannot read properties of undefined");
+    const attempt = vi
+      .spyOn(VendorQuoteClient.prototype as unknown as { attemptQuote: () => Promise<never> }, "attemptQuote")
+      .mockRejectedValue(bug);
+
+    const err = await failureOf(makeClient("http://127.0.0.1:1").generateQuote(REQUEST));
+    expect(err).toMatchObject({ code: "VENDOR_ERROR", message: "Unexpected error talking to the vendor.", cause: bug });
+    expect(attempt).toHaveBeenCalledTimes(1);
   });
 
   it("reports SERVICE_UNAVAILABLE when the vendor is unreachable", async () => {
