@@ -142,6 +142,7 @@ npm test -w packages/web
 - **web / quoteApi** - with a stubbed `fetch`: success, backend envelopes passed through, unknown error codes and non-JSON error bodies normalised, invalid 200 bodies rejected, network failure, client-side timeout, caller cancellation.
 - **web / useQuote** - state transitions, and that the _newest_ request wins when responses arrive out of order (superseded requests are aborted, as is the in-flight one on unmount).
 - **web / Alert** - shows the request ID as a reference when the error has one, and nothing when it doesn't (e.g. a network failure).
+- **web / QuoteResult** - the commission in AUD (`$8,750.00`), the 0-1 rate as a percentage (`0.035` shows as `3.5%`, never `350%` or `0.04%`), the quote reference, and that screen readers are told when the quote arrives.
 - **web / QuoteForm** - numbers (not strings) are submitted; blank, over-limit and fractional inputs show the shared schema's messages per field; errors clear on edit; everything is disabled while loading.
 
 Randomness is made deterministic via injected config (`failureRate` and `timeoutRate` of 0 or 1, fixed latency, fast backoff) rather than sleeps or flaky probabilistic assertions.
