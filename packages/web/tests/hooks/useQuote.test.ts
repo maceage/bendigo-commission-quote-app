@@ -88,6 +88,32 @@ describe("useQuote", () => {
     expect(requestQuoteMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
   });
 
+  it("ignores a superseded request that still answers, rather than rejecting on abort", async () => {
+    // The abort can land after the body has been read, so requestQuote
+    // resolves for a request that is no longer the newest.
+    let resolveFirst!: (r: QuoteResult) => void;
+    requestQuoteMock.mockImplementationOnce(() => new Promise<QuoteResult>((res) => (resolveFirst = res)));
+    const second = deferred();
+    const { result } = renderHook(() => useQuote());
+
+    let p1!: Promise<void>, p2!: Promise<void>;
+    act(() => {
+      p1 = result.current.generate(REQUEST);
+    });
+    act(() => {
+      p2 = result.current.generate(REQUEST);
+    });
+
+    await act(async () => {
+      second.resolve({ ok: true, quote: quote("b") });
+      await p2;
+      resolveFirst({ ok: true, quote: quote("a") });
+      await p1;
+    });
+
+    expect(result.current.state).toEqual({ status: "success", quote: quote("b") });
+  });
+
   it("aborts the in-flight request on unmount", async () => {
     deferred();
     const { result, unmount } = renderHook(() => useQuote());
@@ -98,5 +124,15 @@ describe("useQuote", () => {
     unmount();
     await waitFor(() => expect(requestQuoteMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(true));
     await expect(pending).resolves.toBeUndefined();
+  });
+
+  it("rethrows an unexpected error rather than swallowing it", async () => {
+    // requestQuote turns every expected failure into a result, and throws
+    // only when its caller aborts, so a throw here would be a bug.
+    const bug = new TypeError("Cannot read properties of undefined");
+    requestQuoteMock.mockRejectedValueOnce(bug);
+    const { result } = renderHook(() => useQuote());
+
+    await expect(act(() => result.current.generate(REQUEST))).rejects.toBe(bug);
   });
 });
