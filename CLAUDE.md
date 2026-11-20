@@ -29,7 +29,7 @@ npm test -w packages/quote-service -- src/__tests__/vendor-client.test.ts
 npm test -w packages/web -- -t "newest request wins"
 ```
 
-CI (`.github/workflows/ci.yml`) runs format:check, lint, typecheck, test and build on Node 22 and 24, so code must pass Prettier.
+CI (`.github/workflows/ci-checks.yml`) runs format:check, lint, typecheck, test and build on Node 22 and 24, so code must pass Prettier.
 
 On Windows the checkout uses CRLF (`core.autocrlf=true`) while Prettier writes LF, so a repo-wide `npm run format` or `format:check` touches or flags every file. Format and check only the files you changed; git stores LF either way.
 

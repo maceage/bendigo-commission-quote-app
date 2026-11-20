@@ -90,7 +90,7 @@ In production the environment supplies `VENDOR_API_KEY` (no `.env` file is read)
 npm run check   # format:check + lint + typecheck + test — the same steps CI runs
 ```
 
-Individual steps: `npm run lint`, `npm run typecheck`, `npm run format` (Prettier, writes), `npm run format:check`. GitHub Actions (`.github/workflows/ci.yml`) runs them, plus the build, on Node 22 and 24.
+Individual steps: `npm run lint`, `npm run typecheck`, `npm run format` (Prettier, writes), `npm run format:check`. GitHub Actions (`.github/workflows/ci-checks.yml`) runs them, plus the build, on Node 22 and 24.
 
 ## Running the tests
 
