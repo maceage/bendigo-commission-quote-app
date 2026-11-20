@@ -6,13 +6,7 @@
 // authority (defence in depth).
 
 import { useState, type FormEvent } from "react";
-import {
-  MAX_LOAN_AMOUNT,
-  MAX_LOAN_TERM_MONTHS,
-  QuoteRequestSchema,
-  RISK_BANDS,
-  type QuoteRequest,
-} from "@commission-quote/contract";
+import { MAX_LOAN_TERM_MONTHS, QuoteRequestSchema, RISK_BANDS, type QuoteRequest } from "@commission-quote/contract";
 
 interface QuoteFormProps {
   onSubmit: (request: QuoteRequest) => void;
@@ -38,9 +32,13 @@ function toNumber(value: string): number | undefined {
   return value.trim() === "" ? undefined : Number(value);
 }
 
-/** Blank -> undefined, else the trimmed text; the schema checks it's an amount. */
+/**
+ * Blank -> undefined, else the text without a dollar sign, thousands
+ * separators or spaces (staff type "$250,000"); the schema checks the rest.
+ */
 function toAmount(value: string): string | undefined {
-  return value.trim() === "" ? undefined : value.trim();
+  const amount = value.replace(/[$,\s]/g, "");
+  return amount === "" ? undefined : amount;
 }
 
 function validate(fields: Fields): { request: QuoteRequest } | { errors: FieldErrors } {
@@ -86,11 +84,11 @@ export function QuoteForm({ onSubmit, loading }: QuoteFormProps) {
         <input
           id="loanAmount"
           name="loanAmount"
-          type="number"
-          min="0.01"
-          max={MAX_LOAN_AMOUNT}
-          step="0.01"
+          // Text, not number: a number input reports "250,000" as blank,
+          // and its spinner and scroll wheel can change an amount by accident.
+          type="text"
           inputMode="decimal"
+          autoComplete="off"
           value={fields.loanAmount}
           onChange={(e) => update("loanAmount", e.target.value)}
           aria-invalid={fieldErrors.loanAmount !== undefined}

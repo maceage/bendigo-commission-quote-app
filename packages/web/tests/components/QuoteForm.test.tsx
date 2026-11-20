@@ -27,6 +27,25 @@ describe("QuoteForm", () => {
     expect(onSubmit).toHaveBeenCalledWith({ loanAmount: "250000.50", loanTermInMonths: 36, riskBand: "HIGH" });
   });
 
+  it("accepts an amount written with a dollar sign, commas and spaces", async () => {
+    const { user, amount, term, submit, onSubmit } = setup();
+    await user.type(amount, " $250,000.50 ");
+    await user.type(term, "36");
+    await user.click(submit);
+
+    expect(onSubmit).toHaveBeenCalledWith({ loanAmount: "250000.50", loanTermInMonths: 36, riskBand: "MEDIUM" });
+  });
+
+  it("says an amount that isn't a number isn't one, rather than that it's blank", async () => {
+    const { user, amount, term, submit, onSubmit } = setup();
+    await user.type(amount, "250k");
+    await user.type(term, "36");
+    await user.click(submit);
+
+    expect(screen.getByText("Loan amount must be a number.")).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it("shows field errors for blank fields and doesn't submit", async () => {
     const { user, submit, onSubmit, amount } = setup();
     await user.click(submit);
