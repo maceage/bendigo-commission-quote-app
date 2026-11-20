@@ -1,0 +1,62 @@
+// The whole backend path over real HTTP: quote-service's app, QuoteService
+// and VendorQuoteClient calling the real mock vendor. Every other suite
+// tests one side against a stand-in, so only this one catches the two
+// sides drifting apart (header name, path, payload shape).
+
+import { describe, it, expect, afterEach } from "vitest";
+import { QuoteErrorSchema, QuoteResponseSchema } from "@commission-quote/contract";
+import { createApp as createVendorApp, type VendorApiOptions } from "@commission-quote/vendor-api/app";
+import { createApp } from "../app";
+import { QuoteService } from "../services/quote.service";
+import { VendorQuoteClient } from "../services/vendor-client";
+import { startApp, loanPayload } from "./test-server";
+
+const KEY = "test-vendor-key-123";
+
+let harnesses: Awaited<ReturnType<typeof startApp>>[] = [];
+
+afterEach(async () => {
+  await Promise.all(harnesses.map((h) => h.close()));
+  harnesses = [];
+});
+
+/** Starts the mock vendor and quote-service wired to it; returns a POST /api/quotes helper. */
+async function startStack(vendor: Partial<VendorApiOptions> = {}, clientKey = KEY) {
+  const vendorHarness = await startApp(createVendorApp({ apiKey: KEY, failureRate: 0, latencyMs: [0, 0], ...vendor }));
+  harnesses.push(vendorHarness);
+
+  const client = new VendorQuoteClient({ baseUrl: vendorHarness.url, apiKey: clientKey, baseDelayMs: 10 });
+  const service = await startApp(createApp({ quoteService: new QuoteService(client) }));
+  harnesses.push(service);
+
+  return (body: string) =>
+    fetch(`${service.url}/api/quotes`, { method: "POST", headers: { "content-type": "application/json" }, body });
+}
+
+describe("quote-service -> mock vendor", () => {
+  it("returns the vendor's quote for valid loan details", async () => {
+    const post = await startStack();
+    const res = await post(loanPayload());
+
+    expect(res.status).toBe(200);
+    const quote = QuoteResponseSchema.parse(await res.json());
+    expect(quote.commissionRate).toBe(0.035);
+    expect(quote.totalCommission).toBe(8750);
+  });
+
+  it("surfaces a key the vendor rejects as VENDOR_ERROR without retrying", async () => {
+    const post = await startStack({}, "not-the-key");
+    const res = await post(loanPayload());
+
+    expect(res.status).toBe(502);
+    expect(QuoteErrorSchema.parse(await res.json()).code).toBe("VENDOR_ERROR");
+  });
+
+  it("returns SERVICE_UNAVAILABLE once every retry hits the vendor's simulated failure", async () => {
+    const post = await startStack({ failureRate: 1 });
+    const res = await post(loanPayload());
+
+    expect(res.status).toBe(503);
+    expect(QuoteErrorSchema.parse(await res.json()).code).toBe("SERVICE_UNAVAILABLE");
+  });
+});
