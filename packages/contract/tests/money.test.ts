@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { MAX_LOAN_AMOUNT } from "./domain";
-import { applyBasisPoints, fromCents, hasWholeCents, toCents } from "./money";
+import { MAX_LOAN_AMOUNT } from "../src/domain";
+import { applyBasisPoints, fromCents, hasWholeCents, toCents } from "../src/money";
 
 /** Reference result in BigInt: exact by construction, rounded half up. */
 function exactCommission(cents: number, basisPoints: number): number {

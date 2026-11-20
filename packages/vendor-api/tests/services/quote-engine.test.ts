@@ -3,7 +3,7 @@
 // rounded a half-cent down.
 
 import { describe, it, expect } from "vitest";
-import { generateQuote } from "../services/quote-engine";
+import { generateQuote } from "../../src/services/quote-engine";
 
 describe("generateQuote", () => {
   it.each([

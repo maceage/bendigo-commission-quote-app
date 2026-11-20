@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QuoteForm } from "./QuoteForm";
+import { QuoteForm } from "../../src/components/QuoteForm";
 
 function setup(loading = false) {
   const onSubmit = vi.fn();

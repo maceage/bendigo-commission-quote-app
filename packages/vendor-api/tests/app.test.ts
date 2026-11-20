@@ -3,7 +3,7 @@
 
 import { describe, it, expect, afterEach } from "vitest";
 import { API_KEY_HEADER, QuoteResponseSchema, type QuoteResponse } from "@commission-quote/contract";
-import { createApp } from "../app";
+import { createApp } from "../src/app";
 import { startApp, VALID_KEY, QUOTE_ENDPOINT, quotePayload } from "./test-server";
 
 let harness: Awaited<ReturnType<typeof startApp>> | undefined;

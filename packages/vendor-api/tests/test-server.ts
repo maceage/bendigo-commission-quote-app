@@ -2,7 +2,7 @@
 // duration of a test, exposes a base URL, cleans up after.
 
 import type { Express } from "express";
-import { createLogger, type Logger } from "../logger";
+import { createLogger, type Logger } from "../src/logger";
 
 /** The app's real logger config (incl. redaction), recording each raw line for assertions. */
 export function captureLogs(): { logger: Logger; lines: string[] } {

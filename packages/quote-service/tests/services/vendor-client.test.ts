@@ -5,8 +5,8 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { API_KEY_HEADER, REQUEST_ID_HEADER } from "@commission-quote/contract";
-import { VendorClientError, VendorQuoteClient, type VendorClientConfig } from "../services/vendor-client";
-import { captureLogs } from "./test-server";
+import { VendorClientError, VendorQuoteClient, type VendorClientConfig } from "../../src/services/vendor-client";
+import { captureLogs } from "../test-server";
 
 const KEY = "test-vendor-key-123";
 const REQUEST = { loanAmount: 250_000, loanTermInMonths: 36, riskBand: "MEDIUM" as const };

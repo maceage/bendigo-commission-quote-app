@@ -2,8 +2,8 @@
 
 import { describe, it, expect, afterEach } from "vitest";
 import { API_KEY_HEADER } from "@commission-quote/contract";
-import { createApp } from "../app";
-import { startApp, captureLogs, VALID_KEY, QUOTE_ENDPOINT, quotePayload } from "./test-server";
+import { createApp } from "../../src/app";
+import { startApp, captureLogs, VALID_KEY, QUOTE_ENDPOINT, quotePayload } from "../test-server";
 
 let harness: Awaited<ReturnType<typeof startApp>> | undefined;
 

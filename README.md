@@ -157,6 +157,8 @@ packages/
 docker/              # backend and web Dockerfiles, nginx config (used by docker-compose.yml)
 ```
 
+Each package keeps its code in `src/` and its tests in `tests/`, which mirrors `src/`: `quote-service/tests/services/vendor-client.test.ts` tests `quote-service/src/services/vendor-client.ts`. Tests that span several files (like quote-service's `end-to-end.test.ts`) and shared test helpers sit at the top of `tests/`.
+
 ## AI usage (transparency statement)
 
 This challenge was completed with AI assistance, used in the following ways:

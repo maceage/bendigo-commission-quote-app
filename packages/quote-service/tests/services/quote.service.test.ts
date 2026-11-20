@@ -6,8 +6,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { pino } from "pino";
 import type { QuoteRequest, QuoteResponse } from "@commission-quote/contract";
-import { QuoteService } from "../services/quote.service";
-import { VendorClientError } from "../services/vendor-client";
+import { QuoteService } from "../../src/services/quote.service";
+import { VendorClientError } from "../../src/services/vendor-client";
 
 const REQUEST: QuoteRequest = {
   loanAmount: 250_000,

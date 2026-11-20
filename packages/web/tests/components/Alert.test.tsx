@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { Alert } from "./Alert";
+import { Alert } from "../../src/components/Alert";
 
 describe("Alert", () => {
   it("shows the request ID as a reference the user can quote to support", () => {

@@ -4,9 +4,9 @@
 
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { REQUEST_ID_HEADER, type QuoteError, type QuoteRequest, type QuoteResponse } from "@commission-quote/contract";
-import { createApp } from "../app";
-import { VendorClientError } from "../services/vendor-client";
-import { startApp, loanPayload, captureLogs } from "./test-server";
+import { createApp } from "../../src/app";
+import { VendorClientError } from "../../src/services/vendor-client";
+import { startApp, loanPayload, captureLogs } from "../test-server";
 
 let harness: Awaited<ReturnType<typeof startApp>> | undefined;
 

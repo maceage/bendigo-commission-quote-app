@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { QuoteRequest } from "@commission-quote/contract";
-import { requestQuote } from "./quoteApi";
+import { requestQuote } from "../../src/api/quoteApi";
 
 const REQUEST: QuoteRequest = { loanAmount: 250_000, loanTermInMonths: 36, riskBand: "MEDIUM" };
 const QUOTE = { quoteId: "11111111-1111-4111-8111-111111111111", commissionRate: 0.035, totalCommission: 8750 };

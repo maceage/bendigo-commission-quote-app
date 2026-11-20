@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { QuoteRequest, QuoteResponse } from "@commission-quote/contract";
-import type { QuoteResult } from "../api/quoteApi";
-import { useQuote } from "./useQuote";
+import type { QuoteResult } from "../../src/api/quoteApi";
+import { useQuote } from "../../src/hooks/useQuote";
 
-vi.mock("../api/quoteApi", () => ({ requestQuote: vi.fn() }));
-const { requestQuote } = await import("../api/quoteApi");
+vi.mock("../../src/api/quoteApi", () => ({ requestQuote: vi.fn() }));
+const { requestQuote } = await import("../../src/api/quoteApi");
 const requestQuoteMock = vi.mocked(requestQuote);
 
 const REQUEST: QuoteRequest = { loanAmount: 250_000, loanTermInMonths: 36, riskBand: "MEDIUM" };

@@ -2,7 +2,7 @@
 // than a cross-package test-utils workspace at this scale).
 
 import type { Express } from "express";
-import { createLogger, type Logger } from "../logger";
+import { createLogger, type Logger } from "../src/logger";
 
 /** The app's real logger config, recording every line as parsed JSON for assertions. */
 export function captureLogs(): { logger: Logger; lines: Record<string, unknown>[] } {

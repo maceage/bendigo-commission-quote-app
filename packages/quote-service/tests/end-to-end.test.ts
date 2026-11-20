@@ -6,9 +6,9 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { QuoteErrorSchema, QuoteResponseSchema, REQUEST_ID_HEADER } from "@commission-quote/contract";
 import { createApp as createVendorApp, type VendorApiOptions } from "@commission-quote/vendor-api/app";
-import { createApp } from "../app";
-import { QuoteService } from "../services/quote.service";
-import { VendorQuoteClient, type VendorClientConfig } from "../services/vendor-client";
+import { createApp } from "../src/app";
+import { QuoteService } from "../src/services/quote.service";
+import { VendorQuoteClient, type VendorClientConfig } from "../src/services/vendor-client";
 import { startApp, loanPayload, captureLogs } from "./test-server";
 
 const KEY = "test-vendor-key-123";
