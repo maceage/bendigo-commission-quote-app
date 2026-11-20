@@ -15,11 +15,9 @@ export function quoteRoutes(quoteService: QuoteProvider): Router {
     // waste a round-trip to the vendor on garbage.
     const parsed = QuoteRequestSchema.safeParse(req.body);
     if (!parsed.success) {
-      // The contract's messages are written to be shown to users.
-      sendError(req, res, {
-        code: "VALIDATION_ERROR",
-        message: parsed.error.issues[0]?.message ?? "Invalid loan details.",
-      });
+      // The contract's messages are written to be shown to users. A
+      // failed parse always has at least one issue, hence the `!`.
+      sendError(req, res, { code: "VALIDATION_ERROR", message: parsed.error.issues[0]!.message });
       return;
     }
 
