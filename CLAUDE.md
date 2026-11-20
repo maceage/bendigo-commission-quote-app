@@ -19,6 +19,7 @@ npm test               # every package's Vitest suite
 npm run check          # format:check + lint + typecheck + test (what CI runs, plus build)
 npm run build          # web: tsc + vite build; backends: esbuild bundle to dist/server.cjs
 npm run lint | typecheck | format | format:check
+docker compose up --build   # whole app via nginx on :8080 (needs VENDOR_API_KEY in .env or the shell)
 ```
 
 Single package / single test:
@@ -29,7 +30,9 @@ npm test -w packages/quote-service -- src/__tests__/vendor-client.test.ts
 npm test -w packages/web -- -t "newest request wins"
 ```
 
-CI (`.github/workflows/ci-checks.yml`) runs format:check, lint, typecheck, test and build on Node 22 and 24, so code must pass Prettier.
+CI (`.github/workflows/ci-checks.yml`) runs format:check, lint, typecheck, test and build on Node 22 and 24, so code must pass Prettier. A `DockerSmokeTest` job builds the images with Compose and requests a quote through nginx; Docker isn't installed on the dev machine, so CI is the only place the Docker setup is exercised.
+
+Docker: `docker/backend.Dockerfile` builds either backend (`PACKAGE` build arg) into an image holding only Node and the esbuild bundle (the bundle is self-contained, so no `node_modules`). `docker/web.Dockerfile` serves the Vite build with nginx (`docker/nginx.conf`), which proxies `/api` to quote-service; only nginx publishes a port. All images build from the repo root because the workspaces share one lockfile, so a new workspace package needs its `package.json` copied in both Dockerfiles before `npm ci`. Compose passes unset optional settings as empty strings, so the backends treat an empty env var as unset.
 
 On Windows the checkout uses CRLF (`core.autocrlf=true`) while Prettier writes LF, so a repo-wide `npm run format` or `format:check` touches or flags every file. Format and check only the files you changed; git stores LF either way.
 

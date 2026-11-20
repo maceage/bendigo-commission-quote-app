@@ -15,7 +15,7 @@ export function createLogger({ level, destination }: { level?: string; destinati
     {
       name: "vendor-api",
       // Silent under Vitest so test output stays readable; LOG_LEVEL overrides.
-      level: level ?? process.env.LOG_LEVEL ?? (process.env.VITEST ? "silent" : "info"),
+      level: level ?? (process.env.LOG_LEVEL || undefined) ?? (process.env.VITEST ? "silent" : "info"),
       // pino-http logs request headers; the key must never reach the logs.
       redact: [`req.headers["${API_KEY_HEADER}"]`, "req.headers.authorization", "req.headers.cookie"],
     },

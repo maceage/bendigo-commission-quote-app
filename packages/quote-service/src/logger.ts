@@ -14,7 +14,7 @@ export function createLogger({ level, destination }: { level?: string; destinati
     {
       name: "quote-service",
       // Silent under Vitest so test output stays readable; LOG_LEVEL overrides.
-      level: level ?? process.env.LOG_LEVEL ?? (process.env.VITEST ? "silent" : "info"),
+      level: level ?? (process.env.LOG_LEVEL || undefined) ?? (process.env.VITEST ? "silent" : "info"),
     },
     destination ?? pino.destination(1),
   );

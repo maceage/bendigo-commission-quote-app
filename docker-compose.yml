@@ -1,0 +1,51 @@
+# The whole app: `docker compose up --build`, then open http://localhost:8080.
+# Only nginx (web) is published; the backends are reachable only inside
+# the Compose network, as they would be behind a real reverse proxy.
+# Settings come from the shell or the repo-root .env (see .env.example).
+
+services:
+  vendor-api:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+      args:
+        PACKAGE: vendor-api
+    environment:
+      VENDOR_API_KEY: ${VENDOR_API_KEY:?set VENDOR_API_KEY (see .env.example)}
+      VENDOR_FAILURE_RATE: ${VENDOR_FAILURE_RATE:-}
+      VENDOR_TIMEOUT_RATE: ${VENDOR_TIMEOUT_RATE:-}
+      LOG_LEVEL: ${LOG_LEVEL:-}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4001/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  quote-service:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+      args:
+        PACKAGE: quote-service
+    environment:
+      VENDOR_API_KEY: ${VENDOR_API_KEY:?set VENDOR_API_KEY (see .env.example)}
+      VENDOR_API_BASE_URL: http://vendor-api:4001
+      LOG_LEVEL: ${LOG_LEVEL:-}
+    depends_on:
+      vendor-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      quote-service:
+        condition: service_healthy

@@ -88,7 +88,23 @@ VENDOR_API_KEY=... npm start -w packages/vendor-api
 VENDOR_API_KEY=... npm start -w packages/quote-service
 ```
 
-In production the environment supplies `VENDOR_API_KEY` (no `.env` file is read), and `packages/web/dist` is served behind a reverse proxy that routes `/api` to quote-service.
+In production the environment supplies `VENDOR_API_KEY` (no `.env` file is read), and `packages/web/dist` is served behind a reverse proxy that routes `/api` to quote-service, as in the Docker setup below.
+
+### Running with Docker
+
+With Docker and Docker Compose installed, from the repo root:
+
+```bash
+cp .env.example .env    # if you haven't already; Compose reads VENDOR_API_KEY etc. from it
+docker compose up --build
+```
+
+Then open **http://localhost:8080**. This runs three containers:
+
+- **web**: nginx serving the built front end and proxying `/api` to quote-service. This is the production replacement for Vite's dev proxy. It is the only container with a published port.
+- **quote-service** and **vendor-api**: each image holds just Node and its esbuild bundle, running as the unprivileged `node` user. They are reachable only inside the Compose network.
+
+Compose waits for each backend's `/healthz` before starting the next service, and refuses to start without `VENDOR_API_KEY`. The `.env` file is excluded from the build context, so the key is never baked into an image; it is passed at runtime. The same settings as `npm run dev` apply (`VENDOR_FAILURE_RATE`, `VENDOR_TIMEOUT_RATE`, `LOG_LEVEL`). Stop with `Ctrl+C`, or `docker compose down`.
 
 ## Quality checks
 
@@ -96,7 +112,7 @@ In production the environment supplies `VENDOR_API_KEY` (no `.env` file is read)
 npm run check   # format:check + lint + typecheck + test — the same steps CI runs
 ```
 
-Individual steps: `npm run lint`, `npm run typecheck`, `npm run format` (Prettier, writes), `npm run format:check`. GitHub Actions (`.github/workflows/ci-checks.yml`) runs them, plus the build, on Node 22 and 24.
+Individual steps: `npm run lint`, `npm run typecheck`, `npm run format` (Prettier, writes), `npm run format:check`. GitHub Actions (`.github/workflows/ci-checks.yml`) runs them, plus the build, on Node 22 and 24. A second job builds the Docker images, starts the stack and requests a quote through nginx.
 
 ## Running the tests
 
@@ -136,6 +152,7 @@ packages/
 ├── vendor-api/      # mock third-party vendor (auth middleware, quote engine, failure simulation)
 ├── quote-service/   # our backend (routes, QuoteService, vendor client with retry/timeout/idempotency, error mapping)
 └── web/             # React front-end (form, useQuote state machine, result/alert components)
+docker/              # backend and web Dockerfiles, nginx config (used by docker-compose.yml)
 ```
 
 ## AI usage (transparency statement)
@@ -152,8 +169,7 @@ Every design decision - the contract-package approach, API-key custody in the ba
 
 ## Known trade-offs / what I'd do with more time
 
-- **Deploy story**: backends bundle with esbuild, but there's no Dockerfile or deployment config.
-- **The dev proxy is dev-only**: in production the front-end and quote-service would sit behind a reverse proxy doing the same `/api` routing.
+- **Docker, but no deployment**: the Compose setup runs the whole app locally and is smoke-tested in CI, but images aren't published to a registry, there's no HTTPS (nginx listens on plain HTTP), and nothing targets a real platform (e.g. Kubernetes or a cloud container service). Base images use version tags rather than pinned digests.
 - **`QuoteService` is currently a pass-through** - wired in, and deliberately kept as a seam for caching, rate limiting, or auditing when the app grows.
 - **The mock's idempotency store is in memory** (last 1,000 keys) - fine for a mock; a real vendor would persist it.
 - **Money as floats**: totals are rounded to cents, but a real lending platform should use integer cents or a decimal type end-to-end.

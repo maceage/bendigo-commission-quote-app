@@ -1,0 +1,9 @@
+# Keep the build context small, and secrets out of every image.
+.env
+.git
+.github
+.idea
+**/node_modules
+**/dist
+**/coverage
+*.pdf
