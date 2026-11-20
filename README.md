@@ -154,5 +154,6 @@ Every design decision - the contract-package approach, API-key custody in the ba
 ## Assumptions
 
 - Commission rates by risk band (LOW 2%, MEDIUM 3.5%, HIGH 6%) are illustrative - the vendor is a mock.
-- `commissionRate` is a fraction (0–1), rendered as a percentage in the UI; this is specified in the shared contract to avoid the classic fraction-vs-percent ambiguity.
+- `commissionRate` is a fraction (0–1), rendered as a percentage in the UI; this is specified in the shared contract to avoid the classic fraction-vs-percent ambiguity. The brief doesn't say which the vendor sends, so this needs confirming with them: a vendor sending percentages (e.g. `3.5`) would have every quote rejected as `VENDOR_ERROR`.
+- `quoteId` is treated as an opaque, non-empty string. The brief doesn't specify a format, so the contract doesn't require one (the mock happens to issue UUIDs).
 - Loan amount/term bounds (max 600 months, etc.) are sensible defaults for demonstration, not business rules.

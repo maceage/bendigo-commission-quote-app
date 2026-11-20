@@ -40,7 +40,9 @@ export type QuoteRequest = z.infer<typeof QuoteRequestSchema>;
  * Response payload: the quote returned by the Commission Quote API.
  */
 export const QuoteResponseSchema = z.object({
-  quoteId: z.string().uuid(),
+  // Opaque vendor reference: the brief doesn't specify a format, so
+  // don't reject a real vendor's IDs (e.g. "Q-12345"). The mock uses UUIDs.
+  quoteId: z.string().min(1),
   commissionRate: z.number().min(0).max(1), // fraction, e.g. 0.035 = 3.5%
   totalCommission: z.number().nonnegative(),
 });

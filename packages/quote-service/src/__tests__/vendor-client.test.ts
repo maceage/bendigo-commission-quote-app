@@ -87,6 +87,24 @@ describe("VendorQuoteClient", () => {
     expect(quote.totalCommission).toBe(8750);
   });
 
+  it("accepts a vendor quoteId that is not a UUID", async () => {
+    const { url } = await startVendor((_req, res) => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ quoteId: "Q-12345", commissionRate: 0.035, totalCommission: 8750 }));
+    });
+    const quote = await makeClient(url).generateQuote(REQUEST);
+    expect(quote.quoteId).toBe("Q-12345");
+  });
+
+  it("rejects an empty quoteId as malformed", async () => {
+    const { url } = await startVendor((_req, res) => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ quoteId: "", commissionRate: 0.035, totalCommission: 8750 }));
+    });
+    const err = await failureOf(makeClient(url).generateQuote(REQUEST));
+    expect(err.code).toBe("VENDOR_ERROR");
+  });
+
   it("retries a 500 and succeeds on the second attempt", async () => {
     const { url, requests } = await startVendor(statuses([500, 200]));
     const quote = await makeClient(url).generateQuote(REQUEST);
