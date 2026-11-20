@@ -15,4 +15,9 @@ describe("createLogger", () => {
     vi.stubEnv("LOG_LEVEL", "");
     expect(createLogger().level).toBe("silent"); // the default under Vitest
   });
+
+  it("defaults to info outside the tests, as in production", () => {
+    vi.stubEnv("VITEST", "");
+    expect(createLogger().level).toBe("info");
+  });
 });
