@@ -185,6 +185,23 @@ This challenge was completed with AI assistance, used in the following ways:
 - **Code review and fixes (Claude Code)**: I had Claude Code review the codebase and fix what it found: a vendor-error crash, stale responses, a broken typecheck/build, plus added web tests, ESLint, Prettier and CI.
 - **Gap analysis against the brief (Claude Code)**: I had Claude Code compare the implementation with the challenge brief, then chose which gaps to fix. It made each fix as a separate commit: the vendor header renamed to `api-key` as the contract specifies, configurable vendor failure and timeout simulation (`VENDOR_FAILURE_RATE`, `VENDOR_TIMEOUT_RATE`), an end-to-end test of quote-service against the real mock vendor, and accepting any non-empty `quoteId`. It also diagnosed CI failing on Node 20 (jsdom's `undici` dependency needs Node 22.19+) and moved CI to Node 22 and 24.
 - **Exact money handling (Claude Code)**: Claude Code showed that float maths mis-rounded half-cent commissions (8,830 wrong results for loans up to $20,000). At my direction it moved the commission maths to integer cents and basis points, then made amounts travel as decimal strings so no hop reads them as floats.
+- **Hardening (Claude Code)**: I asked Claude Code how it would address each known trade-off, chose which to do, and had it make each as a separate commit. These were:
+  - the Express 5 upgrade;
+  - structured logging with request IDs, shown to staff as a reference;
+  - rejecting loan amounts with fractions of a cent;
+  - Docker images, nginx and Compose;
+  - persisting the mock vendor's idempotency store, and refusing a key reused for a different loan;
+  - moving CI off the deprecated Node 20 GitHub Actions.
+- **Tests and coverage (Claude Code)**: Claude Code moved the tests into a `tests/` folder per package, mirroring `src/`, then listed the gaps it found. I chose which to fill, and it added the tests:
+  - recovery from a timed-out attempt;
+  - `Retry-After` as a date;
+  - the store's eviction and restarts;
+  - startup settings;
+  - the vendor's error responses;
+  - the whole page flow;
+  - a Docker smoke test that CI runs.
+
+  It also added a coverage report, and CI fails below 90%. For the key tests, it temporarily broke the code each one protects to confirm the test fails.
 
 [`CLAUDE.md`](CLAUDE.md) holds the project guidance Claude Code works from.
 
