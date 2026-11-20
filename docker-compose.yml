@@ -36,6 +36,9 @@ services:
         PACKAGE: quote-service
     # As for vendor-api: tini passes SIGTERM on to Node.
     init: true
+    # Docker's default 10s would cut into the 9s quote-service gives
+    # requests in progress to finish on shutdown (see server.ts).
+    stop_grace_period: 12s
     environment:
       VENDOR_API_KEY: ${VENDOR_API_KEY:?set VENDOR_API_KEY (see .env.example)}
       VENDOR_API_BASE_URL: http://vendor-api:4001

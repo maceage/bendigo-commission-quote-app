@@ -3,6 +3,7 @@
 import { createApp } from "./app";
 import { ConfigError, loadConfig, type VendorConfig } from "./config";
 import { createLogger } from "./logger";
+import { closeGracefully } from "./shutdown";
 
 const logger = createLogger();
 
@@ -25,6 +26,25 @@ try {
   process.exit(1);
 }
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   logger.info({ port }, "mock Commission Quote API listening");
 });
+
+// Enough for any request still in its simulated latency (at most 400ms);
+// a simulated hang never finishes, so waiting longer gains nothing.
+const SHUTDOWN_TIMEOUT_MS = 1_000;
+
+// docker compose stop sends SIGTERM, Ctrl-C SIGINT. A second signal
+// while shutting down stops at once.
+let stopping = false;
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.on(signal, () => {
+    if (stopping) process.exit(1);
+    stopping = true;
+    logger.info({ signal }, "shutting down");
+    void closeGracefully(server, { timeoutMs: SHUTDOWN_TIMEOUT_MS, logger }).then(({ forced }) => {
+      logger.info({ forced }, "shut down");
+      process.exit(0);
+    });
+  });
+}

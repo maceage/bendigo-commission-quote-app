@@ -105,4 +105,14 @@ grep -q '"code":"VENDOR_TIMEOUT"' "$WORK/body" || fail "unexpected timeout body:
 awk -v s="$seconds" 'BEGIN { exit !(s >= 7) }' || fail "504 after ${seconds}s; nginx cut off quote-service's 8s deadline"
 pass "hanging vendor gives 504 VENDOR_TIMEOUT after ${seconds}s"
 
+# --- SIGTERM shuts each backend down gracefully (last: it stops them) ---
+# Without the handler, tini passes SIGTERM on and Node dies with code 143.
+for service in quote-service vendor-api; do
+  docker compose stop "$service" >/dev/null 2>&1
+  code=$(docker inspect -f '{{.State.ExitCode}}' "$(docker compose ps --all --quiet "$service")")
+  [ "$code" = 0 ] || fail "$service exited with code $code on SIGTERM, not 0"
+  docker compose logs "$service" | grep -q '"msg":"shut down"' || fail "$service didn't log a graceful shutdown"
+done
+pass "backends shut down gracefully on SIGTERM"
+
 echo "All Docker smoke checks passed."
