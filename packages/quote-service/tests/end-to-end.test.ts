@@ -72,6 +72,33 @@ describe("quote-service -> mock vendor", () => {
     expect(QuoteErrorSchema.parse(await res.json()).code).toBe("SERVICE_UNAVAILABLE");
   });
 
+  it("recovers from a timed-out attempt with the quote it issued, not a duplicate", async () => {
+    // The vendor rolls for failure then for a hang on a new quote, and only
+    // for a hang when replaying an Idempotency-Key. With failureRate 0 and
+    // timeoutRate 0.5 this script means: attempt 1 issues a quote but never
+    // answers; attempt 2 (same key) gets that quote back.
+    const rolls = [0.9, 0.1, 0.9];
+    const random = () => {
+      const next = rolls.shift();
+      if (next === undefined) throw new Error("vendor rolled more often than the test scripted");
+      return next;
+    };
+    const { logger: vendorLogger, lines: vendorLines } = captureLogs();
+    const post = await startStack(
+      { timeoutRate: 0.5, random, logger: vendorLogger },
+      { timeoutMs: 200, totalTimeoutMs: 2_000 },
+    );
+
+    const res = await post(loanPayload());
+    expect(res.status).toBe(200);
+    const quote = QuoteResponseSchema.parse(await res.json());
+
+    const hung = vendorLines.filter((l) => l.msg === "simulated timeout: not responding");
+    expect(hung).toHaveLength(1);
+    expect(quote.quoteId).toBe(hung[0]!.quoteId);
+    expect(rolls).toHaveLength(0); // exactly two attempts reached the vendor
+  });
+
   it("returns VENDOR_TIMEOUT when the vendor never responds", async () => {
     const post = await startStack({ timeoutRate: 1 }, { timeoutMs: 100, totalTimeoutMs: 500 });
     const res = await post(loanPayload());

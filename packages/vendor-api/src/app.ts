@@ -18,6 +18,12 @@ export interface VendorApiOptions {
   timeoutRate?: number;
   /** Simulated latency range in ms: [min, max]. */
   latencyMs?: [number, number];
+  /**
+   * Source of the rolls that decide simulated failures and hangs
+   * (0 <= n < 1). Tests inject a script to get an exact sequence of
+   * outcomes, e.g. "hang, then respond".
+   */
+  random?: () => number;
   logger?: Logger;
 }
 
@@ -28,6 +34,7 @@ const DEFAULTS = {
   // 5% hang: rare, because each one costs the caller a full timeout.
   timeoutRate: 0.05,
   latencyMs: [50, 400] as [number, number],
+  random: Math.random,
 };
 
 /** How many idempotency keys the mock remembers (oldest evicted first). */
@@ -70,7 +77,7 @@ export function createApp(options: VendorApiOptions) {
         let quote = key === undefined ? undefined : issued.get(key);
 
         if (quote === undefined) {
-          if (Math.random() < cfg.failureRate) {
+          if (cfg.random() < cfg.failureRate) {
             req.log.warn("simulated failure");
             res.status(500).json({ error: "Internal vendor error." });
             return;
@@ -89,7 +96,7 @@ export function createApp(options: VendorApiOptions) {
         // response lost in transit. The connection stays open until the
         // caller gives up, and a retry with the same Idempotency-Key gets
         // this quote rather than a duplicate.
-        if (Math.random() < cfg.timeoutRate) {
+        if (cfg.random() < cfg.timeoutRate) {
           req.log.warn({ quoteId: quote.quoteId }, "simulated timeout: not responding");
           return;
         }
