@@ -186,6 +186,7 @@ Every design decision - the contract-package approach, API-key custody in the ba
 
 ## Known trade-offs / what I'd do with more time
 
+- **No staff login or rate limiting**: the brief describes a tool for staff, but anyone who can reach `/api/quotes` can request quotes, and as often as they like. Only the vendor API key is protected (it never leaves quote-service). In production I'd put the app behind the bank's single sign-on (e.g. OIDC at nginx or as quote-service middleware), record which staff member requested each quote, and rate-limit per user in the `QuoteService` seam so one client can't run up vendor calls.
 - **Docker, but no deployment**: the Compose setup runs the whole app locally and is smoke-tested in CI, but images aren't published to a registry, there's no HTTPS (nginx listens on plain HTTP), and nothing targets a real platform (e.g. Kubernetes or a cloud container service). Base images use version tags rather than pinned digests.
 - **`QuoteService` is currently a pass-through** - wired in, and deliberately kept as a seam for caching, rate limiting, or auditing when the app grows.
 - **The mock's idempotency store is in memory** (last 1,000 keys) - fine for a mock; a real vendor would persist it.
