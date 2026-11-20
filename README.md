@@ -37,7 +37,7 @@ Tests: Vitest. No ORM/database - deliberately out of scope for this challenge.
 
 ## Prerequisites
 
-- **Node.js 20.6+** (for built-in `--env-file` support - no dotenv dependency needed). An `.nvmrc` is provided.
+- **Node.js 22.19+**: the web tests' DOM environment (jsdom, via its `undici` dependency) requires it. Node also provides the built-in `--env-file` support the backends use, so no dotenv dependency is needed. An `.nvmrc` is provided.
 
 ## Setup
 
@@ -88,7 +88,7 @@ In production the environment supplies `VENDOR_API_KEY` (no `.env` file is read)
 npm run check   # format:check + lint + typecheck + test — the same steps CI runs
 ```
 
-Individual steps: `npm run lint`, `npm run typecheck`, `npm run format` (Prettier, writes), `npm run format:check`. GitHub Actions (`.github/workflows/ci.yml`) runs them, plus the build, on Node 20 and 22.
+Individual steps: `npm run lint`, `npm run typecheck`, `npm run format` (Prettier, writes), `npm run format:check`. GitHub Actions (`.github/workflows/ci.yml`) runs them, plus the build, on Node 22 and 24.
 
 ## Running the tests
 

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file=../../.env src/server.ts",
-    "build": "esbuild src/server.ts --bundle --platform=node --target=node20 --format=cjs --sourcemap --outfile=dist/server.cjs",
+    "build": "esbuild src/server.ts --bundle --platform=node --target=node22 --format=cjs --sourcemap --outfile=dist/server.cjs",
     "start": "node --enable-source-maps dist/server.cjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"

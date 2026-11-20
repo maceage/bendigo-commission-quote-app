@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A take-home challenge submission (brief: `Code Challenge 28 Oct.pdf`): a web app for staff to request commission quotes for loans, plus a **mock** of a third-party vendor Commission Quote API. The codebase will be extended in a live pair-programming session, so changes should keep the existing structure easy to walk through.
 
-TypeScript npm-workspaces monorepo, Node 20.6+ (`.nvmrc`). Vitest everywhere, Express 4 backends, React 19 + Vite front-end, Zod for schemas.
+TypeScript npm-workspaces monorepo, Node 22.19+ (`.nvmrc`; jsdom's undici dependency needs it). Vitest everywhere, Express 4 backends, React 19 + Vite front-end, Zod for schemas.
 
 ## Commands
 
@@ -29,7 +29,7 @@ npm test -w packages/quote-service -- src/__tests__/vendor-client.test.ts
 npm test -w packages/web -- -t "newest request wins"
 ```
 
-CI (`.github/workflows/ci.yml`) runs format:check, lint, typecheck, test and build on Node 20 and 22, so code must pass Prettier.
+CI (`.github/workflows/ci.yml`) runs format:check, lint, typecheck, test and build on Node 22 and 24, so code must pass Prettier.
 
 On Windows the checkout uses CRLF (`core.autocrlf=true`) while Prettier writes LF, so a repo-wide `npm run format` or `format:check` touches or flags every file. Format and check only the files you changed; git stores LF either way.
 
