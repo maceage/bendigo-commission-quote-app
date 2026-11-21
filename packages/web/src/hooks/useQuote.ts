@@ -9,7 +9,9 @@ import { requestQuote } from "../api/quoteApi";
 export type QuoteState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "success"; quote: QuoteResponse }
+  // The request is kept with its quote, so the quote is shown with the
+  // loan it was for, not whatever the form holds now.
+  | { status: "success"; quote: QuoteResponse; request: QuoteRequest }
   | { status: "error"; error: QuoteError };
 
 export function useQuote() {
@@ -32,7 +34,9 @@ export function useQuote() {
     try {
       const result = await requestQuote(request, { signal: controller.signal });
       if (controller.signal.aborted) return;
-      setState(result.ok ? { status: "success", quote: result.quote } : { status: "error", error: result.error });
+      setState(
+        result.ok ? { status: "success", quote: result.quote, request } : { status: "error", error: result.error },
+      );
     } catch {
       if (controller.signal.aborted) return; // superseded — not an error
       // requestQuote returns every failure it expects, so only a bug gets

@@ -48,7 +48,7 @@ describe("useQuote", () => {
       call.resolve({ ok: true, quote: quote("a") });
       await done;
     });
-    expect(result.current.state).toEqual({ status: "success", quote: quote("a") });
+    expect(result.current.state).toEqual({ status: "success", quote: quote("a"), request: REQUEST });
   });
 
   it("goes to error with the envelope on failure", async () => {
@@ -84,7 +84,7 @@ describe("useQuote", () => {
       await Promise.all([p1, p2]);
     });
 
-    expect(result.current.state).toEqual({ status: "success", quote: quote("b") });
+    expect(result.current.state).toEqual({ status: "success", quote: quote("b"), request: REQUEST });
     expect(requestQuoteMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
   });
 
@@ -111,7 +111,7 @@ describe("useQuote", () => {
       await p1;
     });
 
-    expect(result.current.state).toEqual({ status: "success", quote: quote("b") });
+    expect(result.current.state).toEqual({ status: "success", quote: quote("b"), request: REQUEST });
   });
 
   it("aborts the in-flight request on unmount", async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
-import type { QuoteResponse } from "@commission-quote/contract";
+import type { QuoteRequest, QuoteResponse } from "@commission-quote/contract";
 import { QuoteResult } from "../../src/components/QuoteResult";
 
 /** The value shown beside a label in the result's definition list. */
@@ -8,9 +8,14 @@ function valueFor(label: string): string | null | undefined {
   return screen.getByText(label).nextElementSibling?.textContent;
 }
 
-function renderQuote(overrides: Partial<QuoteResponse> = {}) {
+const REQUEST: QuoteRequest = { loanAmount: "250000", loanTermInMonths: 36, riskBand: "MEDIUM" };
+
+function renderQuote(overrides: Partial<QuoteResponse> = {}, request: Partial<QuoteRequest> = {}) {
   render(
-    <QuoteResult quote={{ quoteId: "Q-12345", commissionRate: 0.035, totalCommission: "8750.00", ...overrides }} />,
+    <QuoteResult
+      quote={{ quoteId: "Q-12345", commissionRate: 0.035, totalCommission: "8750.00", ...overrides }}
+      request={{ ...REQUEST, ...request }}
+    />,
   );
 }
 
@@ -42,6 +47,18 @@ describe("QuoteResult", () => {
   ])("formats a commission of %s as %s", (totalCommission, shown) => {
     renderQuote({ totalCommission });
     expect(valueFor("Total commission")).toBe(shown);
+  });
+
+  it("shows the loan details the quote was for", () => {
+    renderQuote();
+    expect(valueFor("Loan amount")).toBe("$250,000.00");
+    expect(valueFor("Loan term")).toBe("36 months");
+    expect(valueFor("Risk band")).toBe("MEDIUM");
+  });
+
+  it("says a one-month term in the singular", () => {
+    renderQuote({}, { loanTermInMonths: 1 });
+    expect(valueFor("Loan term")).toBe("1 month");
   });
 
   it("announces the quote to screen readers when it arrives", () => {

@@ -79,6 +79,21 @@ describe("App", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("keeps showing the loan a quote was for after the form is edited", async () => {
+    const { respond } = controllableFetch();
+    render(<App />);
+    const user = await fillAndSubmit();
+    respond(json(QUOTE));
+    await screen.findByText("$8,750.00");
+
+    await user.clear(screen.getByLabelText("Loan amount ($)"));
+    await user.type(screen.getByLabelText("Loan amount ($)"), "900000");
+
+    const quote = screen.getByRole("heading", { name: "Your commission quote" }).parentElement!;
+    expect(quote).toHaveTextContent("$250,000.00");
+    expect(quote).not.toHaveTextContent("$900,000.00");
+  });
+
   it("never calls the API for invalid input", async () => {
     const { fetchMock } = controllableFetch();
     render(<App />);

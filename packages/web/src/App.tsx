@@ -14,7 +14,7 @@ export default function App() {
       <h1>Commission Quote</h1>
       <QuoteForm onSubmit={generate} loading={state.status === "loading"} />
 
-      {state.status === "success" && <QuoteResult quote={state.quote} />}
+      {state.status === "success" && <QuoteResult quote={state.quote} request={state.request} />}
       {state.status === "error" && <Alert error={state.error} />}
     </main>
   );
