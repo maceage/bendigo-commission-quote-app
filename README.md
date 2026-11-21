@@ -180,48 +180,14 @@ Each package keeps its code in `src/` and its tests in `tests/`, which mirrors `
 
 ## AI usage (transparency statement)
 
-This challenge was completed with AI assistance, used in the following ways:
+I used AI throughout, in two phases:
 
-- **Architecture and scaffolding**: I discussed stack and directory-structure options with Claude & Lumo and generated the workspace manifests, tsconfig set, and initial skeletons of the mock vendor, quote-service, and front-end as a starting point.
-- **Debugging**: AI helped diagnose environment issues (npm workspace resolution, env-file loading with npm workspaces' cwd behaviour) and one real defect: an unclassified abort error that escaped the vendor client as a raw `DOMException` - caught by the timeout test, fixed by classifying `TimeoutError` explicitly.
-- **Tests**: test structure and cases were drafted collaboratively with AI, then reviewed, run, and adjusted by me; the test strategy (which layers to test and why) is my own.
-- **Code review and fixes (Claude Code)**: I had Claude Code review the codebase and fix what it found: a vendor-error crash, stale responses, a broken typecheck/build, plus added web tests, ESLint, Prettier and CI.
-- **Gap analysis against the brief (Claude Code)**: I had Claude Code compare the implementation with the challenge brief, then chose which gaps to fix. It made each fix as a separate commit: the vendor header renamed to `api-key` as the contract specifies, configurable vendor failure and timeout simulation (`VENDOR_FAILURE_RATE`, `VENDOR_TIMEOUT_RATE`), an end-to-end test of quote-service against the real mock vendor, and accepting any non-empty `quoteId`. It also diagnosed CI failing on Node 20 (jsdom's `undici` dependency needs Node 22.19+) and moved CI to Node 22 and 24.
-- **Exact money handling (Claude Code)**: Claude Code showed that float maths mis-rounded half-cent commissions (8,830 wrong results for loans up to $20,000). At my direction it moved the commission maths to integer cents and basis points, then made amounts travel as decimal strings so no hop reads them as floats.
-- **Hardening (Claude Code)**: I asked Claude Code how it would address each known trade-off, chose which to do, and had it make each as a separate commit. These were:
-  - the Express 5 upgrade;
-  - structured logging with request IDs, shown to staff as a reference;
-  - rejecting loan amounts with fractions of a cent;
-  - Docker images, nginx and Compose;
-  - persisting the mock vendor's idempotency store, and refusing a key reused for a different loan;
-  - moving CI off the deprecated Node 20 GitHub Actions.
-- **Tests and coverage (Claude Code)**: Claude Code moved the tests into a `tests/` folder per package, mirroring `src/`, then listed the gaps it found. I chose which to fill, and it added the tests:
-  - recovery from a timed-out attempt;
-  - `Retry-After` as a date;
-  - the store's eviction and restarts;
-  - startup settings;
-  - the vendor's error responses;
-  - the whole page flow;
-  - a Docker smoke test that CI runs.
+- **Core build (about 3.5 hours, within the brief's 4-hour timebox)**: the contract, mock vendor, quote-service, front end, their tests and the README. I discussed the stack and structure with Claude and Lumo, used them to generate the workspace scaffolding and the first skeletons of each package, and to draft tests and debug environment issues. I reviewed, ran and reworked everything; the architecture and test strategy are mine.
+- **Hardening (roughly another 2 to 3 hours, after the core build)**: with Claude Code, I had the codebase reviewed against the brief and for defects, then chose which findings to act on. Claude Code made each one as a separate commit, writing a failing test first where it could. This added exact money handling (integer cents, amounts as strings), the Express 5 upgrade, structured logging with request IDs, the configurable failure and timeout simulation, idempotency that survives restarts, Docker with nginx, graceful shutdown, an end-to-end test, CI with a coverage minimum and a Docker smoke test, and fixes for the defects found (e.g. a vendor-error crash, stale responses, a 500 for an unusual wrong key). It also made the loan term affect the rate and the quote show the loan it was for.
 
-  It also added a coverage report, and CI fails below 90%. For the key tests, it temporarily broke the code each one protects to confirm the test fails.
+The times are approximate. The git log records each AI-assisted change, with Claude Code's commits marked as co-authored. [`CLAUDE.md`](CLAUDE.md) holds the project guidance Claude Code works from.
 
-- **Second review (Claude Code)**: I had Claude Code review the whole codebase again and chose which findings to fix. It made each fix as a separate commit, writing a failing test first where the fix was testable:
-  - a wrong vendor API key with a non-ASCII character got a 500 instead of a 401;
-  - the backend containers took 10s to stop (Node as PID 1 ignored SIGTERM), and then a graceful shutdown with a time limit, so a quote in progress still finishes;
-  - the amount field reported "250,000" as blank;
-  - unhelpful messages for a request with no JSON body and for a 200 that isn't JSON;
-  - unchecked `PORT` and vendor URL settings;
-  - no Content-Security-Policy;
-  - a few smaller clean-ups (limit messages built from the limits, flushing the idempotency file to disk).
-
-  Staff sign-in it left alone, as a known trade-off (below).
-
-- **Coverage to 100% (Claude Code)**: I asked Claude Code how to raise coverage. It listed the six gaps, and I had it close each as a separate commit: leaving the web app's `main.tsx` launcher out of coverage like the backends' `server.ts`, testing the production log level, the vendor's request ID handling, the vendor client's and `useQuote`'s safety nets, and the risk band's field error, and removing one fallback message that could never be shown. Every package is now at 100% on all four metrics, and the minimum went from 90% to 95%, set once in `vitest.shared.ts`. Testing `useQuote` showed that an unexpected error would leave the form loading for good, so it now shows an error instead.
-
-[`CLAUDE.md`](CLAUDE.md) holds the project guidance Claude Code works from.
-
-Every design decision - the contract-package approach, API-key custody in the backend only, retry classification, the error-envelope contract - was chosen, reviewed, and understood by me, and I can explain and modify any part of the codebase. I treated the AI output as a fast-moving junior pair programmer whose work always needed review, not as an oracle.
+I chose, reviewed and understood every design decision (the contract package, keeping the API key in the backend only, which failures are retried, the error envelope), and I can explain and change any part of the code. I treated AI as a fast junior pair programmer whose work always needed review, not as an oracle.
 
 ## Known trade-offs / what I'd do with more time
 
