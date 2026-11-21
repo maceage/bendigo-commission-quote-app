@@ -63,6 +63,9 @@ const DEFAULTS = {
   maxDelayMs: 5_000,
 };
 
+/** Statuses meaning the vendor refused our credentials: our configuration is wrong. */
+const AUTH_REJECTED = new Set([401, 403]);
+
 function isTimeout(err: unknown): boolean {
   // AbortSignal.timeout rejects with a DOMException named "TimeoutError".
   // DOMException is not reliably instanceof Error, so duck-type on .name.
@@ -116,10 +119,20 @@ export class VendorQuoteClient implements QuoteProvider {
           err instanceof VendorClientError
             ? err
             : new VendorClientError("VENDOR_ERROR", "Unexpected error talking to the vendor.", { cause: err });
-        log.warn(
-          { attempt, durationMs: Date.now() - started, code: lastError.code, status: lastError.status, err: lastError },
-          "vendor attempt failed",
-        );
+        const details = {
+          attempt,
+          durationMs: Date.now() - started,
+          code: lastError.code,
+          status: lastError.status,
+          err: lastError,
+        };
+        // A refused key fails every quote until someone fixes the
+        // deployment, so it is an error to alert on, not a passing failure.
+        if (lastError.status !== undefined && AUTH_REJECTED.has(lastError.status)) {
+          log.error(details, "vendor rejected our API key: check VENDOR_API_KEY");
+        } else {
+          log.warn(details, "vendor attempt failed");
+        }
 
         if (!lastError.retryable || attempt === this.cfg.maxAttempts) break;
 
@@ -177,7 +190,8 @@ export class VendorQuoteClient implements QuoteProvider {
     // misconfiguration — retrying won't help, fail fast.
     if (!response.ok) {
       await response.body?.cancel().catch(() => {});
-      throw new VendorClientError("VENDOR_ERROR", `Unexpected vendor response (HTTP ${response.status}).`, {
+      // The status is for the logs; staff can't act on it.
+      throw new VendorClientError("VENDOR_ERROR", "The quote provider rejected the request. Please contact support.", {
         status: response.status,
       });
     }

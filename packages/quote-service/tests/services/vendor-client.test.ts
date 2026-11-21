@@ -272,6 +272,28 @@ describe("VendorQuoteClient", () => {
     expect(requests).toHaveLength(1);
   });
 
+  it.each([401, 403])(
+    "logs a %i as an error naming the API key, without the status in the user's message",
+    async (status) => {
+      const { url } = await startVendor(statuses([status]));
+      const { logger, lines } = captureLogs();
+      const err = await failureOf(makeClient(url).generateQuote(REQUEST, { requestId: "req-42", log: logger }));
+
+      expect(err.message).toBe("The quote provider rejected the request. Please contact support.");
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toMatchObject({ level: 50, msg: "vendor rejected our API key: check VENDOR_API_KEY", status });
+    },
+  );
+
+  it("logs any other refused request as a warning", async () => {
+    const { url } = await startVendor(statuses([422]));
+    const { logger, lines } = captureLogs();
+    const err = await failureOf(makeClient(url).generateQuote(REQUEST, { requestId: "req-42", log: logger }));
+
+    expect(err.message).not.toContain("422");
+    expect(lines[0]).toMatchObject({ level: 40, msg: "vendor attempt failed", status: 422 });
+  });
+
   it("turns a bug in an attempt into a user-safe VENDOR_ERROR, without retrying", async () => {
     // Every failure attemptQuote expects is already a VendorClientError, so
     // only a bug could throw anything else: stand one in for it.
